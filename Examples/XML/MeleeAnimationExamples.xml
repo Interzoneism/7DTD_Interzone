@@ -1,0 +1,159 @@
+<!-- 
+    7 Days to Die - Melee Animation XML Modding Examples
+    
+    These examples show how to modify melee weapon animations using only XML.
+    No C# code required! Place these in your mod's Config folder as XML patch files.
+-->
+
+<!-- ============================================================================
+     EXAMPLE 1: Increase Attack Speed
+     ============================================================================ -->
+<configs>
+    <append xpath="/items/item[@name='meleeToolPickaxeIron']">
+        <!-- Increase attacks per minute from 60 to 90 (50% faster) -->
+        <effect_group>
+            <passive_effect name="AttacksPerMinute" operation="base_set" value="90"/>
+        </effect_group>
+    </append>
+</configs>
+
+<!-- ============================================================================
+     EXAMPLE 2: Percentage-Based Speed Boost
+     ============================================================================ -->
+<configs>
+    <!-- Apply 25% speed boost to all steel tools -->
+    <append xpath="/items/item[contains(@name, 'Steel')]">
+        <effect_group>
+            <passive_effect name="AttacksPerMinute" operation="perc_add" value="0.25"/>
+        </effect_group>
+    </append>
+</configs>
+
+<!-- ============================================================================
+     EXAMPLE 3: Longer Weapon Reach
+     ============================================================================ -->
+<configs>
+    <set xpath="/items/item[@name='meleeToolSpear']/property[@name='Range']/@value">4.0</set>
+    <set xpath="/items/item[@name='meleeToolSpear']/property[@name='BlockRange']/@value">5.0</set>
+</configs>
+
+<!-- ============================================================================
+     EXAMPLE 4: Enable Grazing Hits
+     ============================================================================ -->
+<configs>
+    <append xpath="/items/item[@name='meleeToolSledgehammer']/property[@class='Action0']">
+        <!-- Enable grazing hit system -->
+        <property name="UseGrazingHits" value="true"/>
+        
+        <!-- Grazing window: -0.2 to 0.2 of normalized animation time -->
+        <property name="GrazeStart" value="-0.2"/>
+        <property name="GrazeEnd" value="0.2"/>
+        
+        <!-- Grazing hits do 15% of normal damage -->
+        <property name="GrazeDamagePercentage" value="0.15"/>
+        
+        <!-- Grazing hits cost 2% of normal stamina -->
+        <property name="GrazeStaminaPercentage" value="0.02"/>
+    </append>
+</configs>
+
+<!-- ============================================================================
+     EXAMPLE 5: Customize Hit Detection Timing
+     ============================================================================ -->
+<configs>
+    <append xpath="/items/item[@name='meleeToolKnife']/property[@class='Action0']">
+        <!-- Hit detection occurs at 25% through animation (default ~30%) -->
+        <property name="RaycastTime" value="0.25"/>
+        
+        <!-- Impact slowdown duration in seconds -->
+        <property name="ImpactDuration" value="0.05"/>
+        
+        <!-- Animation speed during impact (1.0 = normal, 0.5 = half speed) -->
+        <property name="ImpactPlaybackSpeed" value="0.5"/>
+    </append>
+</configs>
+
+<!-- ============================================================================
+     EXAMPLE 6: Multi-Target Penetration
+     ============================================================================ -->
+<configs>
+    <append xpath="/items/item[@name='meleeToolSpear']/property[@class='Action0']">
+        <!-- Hit up to 2 entities with one attack -->
+        <property name="EntityPenetrationCount" value="2"/>
+    </append>
+</configs>
+
+<!-- ============================================================================
+     EXAMPLE 7: Complete Custom Melee Weapon
+     ============================================================================ -->
+<configs>
+    <append xpath="/items">
+        <item name="meleeCustomKatana">
+            <property name="Extends" value="meleeToolKnife"/>
+            <property name="CustomIcon" value="meleeToolKnife"/>
+            <property name="HoldType" value="6"/>  <!-- Knife-style hold -->
+            <property name="DisplayType" value="melee"/>
+            
+            <property class="Action0">
+                <!-- Fast attack speed -->
+                <property name="Class" value="DynamicMelee"/>
+                <property name="Range" value="3.0"/>
+                <property name="BlockRange" value="3.5"/>
+                <property name="Sphere" value="0.5"/>
+                
+                <!-- Grazing system enabled -->
+                <property name="UseGrazingHits" value="true"/>
+                <property name="GrazeStart" value="-0.15"/>
+                <property name="GrazeEnd" value="0.15"/>
+                <property name="GrazeDamagePercentage" value="0.2"/>
+                
+                <!-- Horizontal sweeping attack -->
+                <property name="IsHorizontalSwing" value="true"/>
+                <property name="SwingDegrees" value="75"/>
+                
+                <!-- Hit up to 3 enemies -->
+                <property name="EntityPenetrationCount" value="3"/>
+                
+                <!-- Damage properties -->
+                <property name="DamageType" value="Slashing"/>
+                
+                <!-- Hit timing -->
+                <property name="RaycastTime" value="0.28"/>
+                <property name="ImpactDuration" value="0.03"/>
+                <property name="ImpactPlaybackSpeed" value="0.7"/>
+            </property>
+            
+            <effect_group>
+                <!-- Very fast attacks -->
+                <passive_effect name="AttacksPerMinute" operation="base_set" value="120"/>
+                
+                <!-- Moderate damage -->
+                <passive_effect name="EntityDamage" operation="base_set" value="25"/>
+                <passive_effect name="BlockDamage" operation="base_set" value="15"/>
+                
+                <!-- Low stamina cost for quick strikes -->
+                <passive_effect name="StaminaLoss" operation="base_set" value="5"/>
+            </effect_group>
+        </item>
+    </append>
+</configs>
+
+<!-- ============================================================================
+     USAGE INSTRUCTIONS
+     ============================================================================
+     
+     To use these examples:
+     
+     1. Create a mod folder in: Mods/YourModName/
+     2. Create ModInfo.xml with basic mod information
+     3. Create Config folder: Mods/YourModName/Config/
+     4. Save these examples as: items.xml in Config folder
+     5. Load the game and test!
+     
+     Tips:
+     - Test one change at a time
+     - Use F1 console to spawn items: "giveself itemname"
+     - Check logs for XML parsing errors
+     - Backup your saves before testing mods
+     
+============================================================================ -->
