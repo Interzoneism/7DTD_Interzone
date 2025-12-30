@@ -1,0 +1,179 @@
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Xml.Linq;
+using MusicUtils;
+using MusicUtils.Enums;
+using UniLinq;
+using UnityEngine.Scripting;
+
+namespace DynamicMusic
+{
+	// Token: 0x02001710 RID: 5904
+	[Preserve]
+	public abstract class LayeredContent : Content
+	{
+		// Token: 0x170013BD RID: 5053
+		// (get) Token: 0x0600B21F RID: 45599 RVA: 0x004551FD File Offset: 0x004533FD
+		// (set) Token: 0x0600B220 RID: 45600 RVA: 0x00455205 File Offset: 0x00453405
+		public LayerType Layer { get; [PublicizedFrom(EAccessModifier.Private)] set; }
+
+		// Token: 0x0600B221 RID: 45601 RVA: 0x0045520E File Offset: 0x0045340E
+		public LayeredContent()
+		{
+			this.clips = new EnumDictionary<PlacementType, IClipAdapter>();
+		}
+
+		// Token: 0x0600B222 RID: 45602
+		public abstract float GetSample(PlacementType _placement, int _idx, params float[] _params);
+
+		// Token: 0x170013BE RID: 5054
+		// (get) Token: 0x0600B223 RID: 45603 RVA: 0x00455224 File Offset: 0x00453424
+		public override bool IsLoaded
+		{
+			get
+			{
+				using (Dictionary<PlacementType, IClipAdapter>.ValueCollection.Enumerator enumerator = this.clips.Values.GetEnumerator())
+				{
+					while (enumerator.MoveNext())
+					{
+						if (!enumerator.Current.IsLoaded)
+						{
+							return false;
+						}
+					}
+				}
+				return true;
+			}
+		}
+
+		// Token: 0x0600B224 RID: 45604 RVA: 0x00455284 File Offset: 0x00453484
+		public override IEnumerator Load()
+		{
+			foreach (IClipAdapter clipAdapter in this.clips.Values)
+			{
+				yield return clipAdapter.Load();
+			}
+			Dictionary<PlacementType, IClipAdapter>.ValueCollection.Enumerator enumerator = default(Dictionary<PlacementType, IClipAdapter>.ValueCollection.Enumerator);
+			yield break;
+			yield break;
+		}
+
+		// Token: 0x0600B225 RID: 45605 RVA: 0x00455294 File Offset: 0x00453494
+		public void LoadImmediate()
+		{
+			foreach (IClipAdapter clipAdapter in this.clips.Values)
+			{
+				clipAdapter.LoadImmediate();
+			}
+		}
+
+		// Token: 0x0600B226 RID: 45606 RVA: 0x004552EC File Offset: 0x004534EC
+		public override void Unload()
+		{
+			foreach (IClipAdapter clipAdapter in this.clips.Values)
+			{
+				clipAdapter.Unload();
+			}
+		}
+
+		// Token: 0x0600B227 RID: 45607 RVA: 0x00455344 File Offset: 0x00453544
+		public override void ParseFromXml(XElement _xmlNode)
+		{
+			base.ParseFromXml(_xmlNode);
+			base.Section = EnumUtils.Parse<SectionType>(_xmlNode.Parent.Parent.GetAttribute("name"), false);
+			this.Layer = EnumUtils.Parse<LayerType>(_xmlNode.Parent.GetAttribute("name"), false);
+		}
+
+		// Token: 0x0600B228 RID: 45608 RVA: 0x004553A0 File Offset: 0x004535A0
+		public void SetData(string _clipAdapterType, int _num, SectionType _section, LayerType _layer, bool loopOnly = false)
+		{
+			base.Name = _num.ToString("000") + DMSConstants.SectionAbbrvs[_section] + DMSConstants.LayerAbbrvs[_layer];
+			base.Section = _section;
+			this.Layer = _layer;
+			this.AddClipAdapter(_clipAdapterType, _num, _section, _layer, PlacementType.Loop);
+			if (!loopOnly)
+			{
+				this.AddClipAdapter(_clipAdapterType, _num, _section, _layer, PlacementType.Begin);
+				this.AddClipAdapter(_clipAdapterType, _num, _section, _layer, PlacementType.End);
+			}
+		}
+
+		// Token: 0x0600B229 RID: 45609 RVA: 0x00455414 File Offset: 0x00453614
+		[PublicizedFrom(EAccessModifier.Private)]
+		public void AddClipAdapter(string _clipAdapterType, int _num, SectionType _section, LayerType _layer, PlacementType _placement)
+		{
+			IClipAdapter clipAdapter = LayeredContent.CreateClipAdapter(_clipAdapterType);
+			clipAdapter.SetPaths(_num, _placement, _section, _layer, "");
+			this.clips.Add(_placement, clipAdapter);
+		}
+
+		// Token: 0x0600B22A RID: 45610 RVA: 0x00455447 File Offset: 0x00453647
+		[PublicizedFrom(EAccessModifier.Protected)]
+		public static IClipAdapter CreateClipAdapter(string _type)
+		{
+			return (IClipAdapter)Activator.CreateInstance(ReflectionHelpers.GetTypeWithPrefix("DynamicMusic.", _type));
+		}
+
+		// Token: 0x0600B22B RID: 45611 RVA: 0x00455460 File Offset: 0x00453660
+		public static T Get<T>(SectionType _section, LayerType _layer) where T : LayeredContent
+		{
+			(from e in Content.AllContent.OfType<T>()
+			where e.Section == _section && e.Layer == _layer
+			select e).ToList<T>();
+			Tuple<SectionType, LayerType> tuple = new Tuple<SectionType, LayerType>(_section, _layer);
+			ContentQueue contentQueue;
+			if (LayeredContent.queueFor.TryGetValue(tuple, out contentQueue))
+			{
+				return (T)((object)contentQueue.Next());
+			}
+			Log.Warning(string.Format("there is no Content for {0}", tuple));
+			return default(T);
+		}
+
+		// Token: 0x0600B22C RID: 45612 RVA: 0x004554E8 File Offset: 0x004536E8
+		public static void ReadyQueuesImmediate()
+		{
+			LayeredContent.queueFor.Clear();
+			using (List<SectionType>.Enumerator enumerator = DMSConstants.LayeredSections.GetEnumerator())
+			{
+				while (enumerator.MoveNext())
+				{
+					SectionType section = enumerator.Current;
+					using (IEnumerator enumerator2 = Enum.GetValues(typeof(LayerType)).GetEnumerator())
+					{
+						while (enumerator2.MoveNext())
+						{
+							LayerType layer = (LayerType)enumerator2.Current;
+							if (((ICollection<LayeredContent>)(from c in Content.AllContent.OfType<LayeredContent>()
+							where c.Section == section && c.Layer == layer
+							select c).ToList<LayeredContent>()).Count > 0)
+							{
+								ContentQueue value = new ContentQueue(section, layer);
+								LayeredContent.queueFor.Add(new Tuple<SectionType, LayerType>(section, layer), value);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Token: 0x0600B22D RID: 45613 RVA: 0x00455618 File Offset: 0x00453818
+		public static void ClearQueues()
+		{
+			foreach (ContentQueue contentQueue in LayeredContent.queueFor.Values)
+			{
+				contentQueue.Clear();
+			}
+			LayeredContent.queueFor.Clear();
+		}
+
+		// Token: 0x04008BB4 RID: 35764
+		[PublicizedFrom(EAccessModifier.Private)]
+		public static Dictionary<Tuple<SectionType, LayerType>, ContentQueue> queueFor = new Dictionary<Tuple<SectionType, LayerType>, ContentQueue>();
+
+		// Token: 0x04008BB5 RID: 35765
+		[PublicizedFrom(EAccessModifier.Protected)]
+		public EnumDictionary<PlacementType, IClipAdapter> clips;
+	}
+}

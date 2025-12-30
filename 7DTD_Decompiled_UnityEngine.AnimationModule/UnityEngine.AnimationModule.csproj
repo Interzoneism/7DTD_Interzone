@@ -1,0 +1,156 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{6E0ABB03-CAC3-45EA-9CC3-455102BB12BB}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>UnityEngine</RootNamespace>
+    <AssemblyName>UnityEngine.AnimationModule</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="netstandard">
+      <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\7 Days To Die\7DaysToDie_Data\Managed\netstandard.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\7 Days To Die\7DaysToDie_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SharedInternalsModule">
+      <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\7 Days To Die\7DaysToDie_Data\Managed\UnityEngine.SharedInternalsModule.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <AppDesigner Include="Properties\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Animation.cs" />
+    <Compile Include="AnimationBlendMode.cs" />
+    <Compile Include="AnimationClip.cs" />
+    <Compile Include="AnimationClipPair.cs" />
+    <Compile Include="AnimationCullingType.cs" />
+    <Compile Include="AnimationEvent.cs" />
+    <Compile Include="AnimationEventSource.cs" />
+    <Compile Include="AnimationPlayMode.cs" />
+    <Compile Include="AnimationState.cs" />
+    <Compile Include="Animations\AimConstraint.cs" />
+    <Compile Include="Animations\AnimationClipPlayable.cs" />
+    <Compile Include="Animations\AnimationHumanStream.cs" />
+    <Compile Include="Animations\AnimationLayerMixerPlayable.cs" />
+    <Compile Include="Animations\AnimationMixerPlayable.cs" />
+    <Compile Include="Animations\AnimationMotionXToDeltaPlayable.cs" />
+    <Compile Include="Animations\AnimationOffsetPlayable.cs" />
+    <Compile Include="Animations\AnimationPlayableBinding.cs" />
+    <Compile Include="Animations\AnimationPlayableExtensions.cs" />
+    <Compile Include="Animations\AnimationPlayableGraphExtensions.cs" />
+    <Compile Include="Animations\AnimationPlayableOutput.cs" />
+    <Compile Include="Animations\AnimationPosePlayable.cs" />
+    <Compile Include="Animations\AnimationRemoveScalePlayable.cs" />
+    <Compile Include="Animations\AnimationSceneHandleUtility.cs" />
+    <Compile Include="Animations\AnimationScriptPlayable.cs" />
+    <Compile Include="Animations\AnimationStream.cs" />
+    <Compile Include="Animations\AnimationStreamHandleUtility.cs" />
+    <Compile Include="Animations\AnimatorBindingsVersion.cs" />
+    <Compile Include="Animations\AnimatorControllerPlayable.cs" />
+    <Compile Include="Animations\AnimatorJobExtensions.cs" />
+    <Compile Include="Animations\Axis.cs" />
+    <Compile Include="Animations\BindType.cs" />
+    <Compile Include="Animations\ConstraintSource.cs" />
+    <Compile Include="Animations\CustomStreamPropertyType.cs" />
+    <Compile Include="Animations\DiscreteEvaluationAttribute.cs" />
+    <Compile Include="Animations\DiscreteEvaluationAttributeUtilities.cs" />
+    <Compile Include="Animations\IAnimationJob.cs" />
+    <Compile Include="Animations\IAnimationJobPlayable.cs" />
+    <Compile Include="Animations\IAnimationPreviewable.cs" />
+    <Compile Include="Animations\IAnimationWindowPreview.cs" />
+    <Compile Include="Animations\IConstraint.cs" />
+    <Compile Include="Animations\IConstraintInternal.cs" />
+    <Compile Include="Animations\JobMethodIndex.cs" />
+    <Compile Include="Animations\LookAtConstraint.cs" />
+    <Compile Include="Animations\MuscleHandle.cs" />
+    <Compile Include="Animations\NotKeyableAttribute.cs" />
+    <Compile Include="Animations\ParentConstraint.cs" />
+    <Compile Include="Animations\PositionConstraint.cs" />
+    <Compile Include="Animations\ProcessAnimationJobStruct.cs" />
+    <Compile Include="Animations\PropertySceneHandle.cs" />
+    <Compile Include="Animations\PropertyStreamHandle.cs" />
+    <Compile Include="Animations\RotationConstraint.cs" />
+    <Compile Include="Animations\ScaleConstraint.cs" />
+    <Compile Include="Animations\TransformSceneHandle.cs" />
+    <Compile Include="Animations\TransformStreamHandle.cs" />
+    <Compile Include="Animator.cs" />
+    <Compile Include="AnimatorClipInfo.cs" />
+    <Compile Include="AnimatorControllerParameter.cs" />
+    <Compile Include="AnimatorControllerParameterType.cs" />
+    <Compile Include="AnimatorControllerParameterTypeConstants.cs" />
+    <Compile Include="AnimatorCullingMode.cs" />
+    <Compile Include="AnimatorOverrideController.cs" />
+    <Compile Include="AnimatorRecorderMode.cs" />
+    <Compile Include="AnimatorStateInfo.cs" />
+    <Compile Include="AnimatorTransitionInfo.cs" />
+    <Compile Include="AnimatorUpdateMode.cs" />
+    <Compile Include="AnimatorUtility.cs" />
+    <Compile Include="ArmDof.cs" />
+    <Compile Include="Avatar.cs" />
+    <Compile Include="AvatarBuilder.cs" />
+    <Compile Include="AvatarIKGoal.cs" />
+    <Compile Include="AvatarIKHint.cs" />
+    <Compile Include="AvatarMask.cs" />
+    <Compile Include="AvatarMaskBodyPart.cs" />
+    <Compile Include="AvatarTarget.cs" />
+    <Compile Include="BodyDof.cs" />
+    <Compile Include="Dof.cs" />
+    <Compile Include="DurationUnit.cs" />
+    <Compile Include="Experimental\Animations\AnimationPlayableOutputExtensions.cs" />
+    <Compile Include="Experimental\Animations\AnimationStreamSource.cs" />
+    <Compile Include="FingerDof.cs" />
+    <Compile Include="HeadDof.cs" />
+    <Compile Include="HumanBodyBones.cs" />
+    <Compile Include="HumanBone.cs" />
+    <Compile Include="HumanDescription.cs" />
+    <Compile Include="HumanLimit.cs" />
+    <Compile Include="HumanParameter.cs" />
+    <Compile Include="HumanPartDof.cs" />
+    <Compile Include="HumanPose.cs" />
+    <Compile Include="HumanPoseHandler.cs" />
+    <Compile Include="HumanTrait.cs" />
+    <Compile Include="IAnimationClipSource.cs" />
+    <Compile Include="LegDof.cs" />
+    <Compile Include="MatchTargetWeightMask.cs" />
+    <Compile Include="Motion.cs" />
+    <Compile Include="Playables\AnimationPlayableUtilities.cs" />
+    <Compile Include="PlayMode.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="QueueMode.cs" />
+    <Compile Include="RuntimeAnimatorController.cs" />
+    <Compile Include="SharedBetweenAnimatorsAttribute.cs" />
+    <Compile Include="SkeletonBone.cs" />
+    <Compile Include="StateInfoIndex.cs" />
+    <Compile Include="StateMachineBehaviour.cs" />
+    <Compile Include="TransitionType.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

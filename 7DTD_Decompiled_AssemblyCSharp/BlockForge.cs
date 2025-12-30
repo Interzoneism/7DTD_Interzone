@@ -1,0 +1,68 @@
+﻿using System;
+using UnityEngine;
+using UnityEngine.Scripting;
+
+// Token: 0x02000100 RID: 256
+[Preserve]
+public class BlockForge : BlockWorkstation
+{
+	// Token: 0x060006BA RID: 1722 RVA: 0x0002F800 File Offset: 0x0002DA00
+	public BlockForge()
+	{
+		this.CraftingParticleLightIntensity = 1.6f;
+	}
+
+	// Token: 0x060006BB RID: 1723 RVA: 0x0002F813 File Offset: 0x0002DA13
+	public override void OnBlockEntityTransformAfterActivated(WorldBase _world, Vector3i _blockPos, int _cIdx, BlockValue _blockValue, BlockEntityData _ebcd)
+	{
+		base.OnBlockEntityTransformAfterActivated(_world, _blockPos, _cIdx, _blockValue, _ebcd);
+		this.MaterialUpdate(_world, _blockPos, _blockValue);
+	}
+
+	// Token: 0x060006BC RID: 1724 RVA: 0x0002F82C File Offset: 0x0002DA2C
+	[PublicizedFrom(EAccessModifier.Protected)]
+	public override void checkParticles(WorldBase _world, int _clrIdx, Vector3i _blockPos, BlockValue _blockValue)
+	{
+		base.checkParticles(_world, _clrIdx, _blockPos, _blockValue);
+		if (_blockValue.ischild)
+		{
+			return;
+		}
+		this.MaterialUpdate(_world, _blockPos, _blockValue);
+	}
+
+	// Token: 0x060006BD RID: 1725 RVA: 0x0002F84D File Offset: 0x0002DA4D
+	public override string GetActivationText(WorldBase _world, BlockValue _blockValue, int _clrIdx, Vector3i _blockPos, EntityAlive _entityFocusing)
+	{
+		return Localization.Get("useForge", false);
+	}
+
+	// Token: 0x060006BE RID: 1726 RVA: 0x0002F85C File Offset: 0x0002DA5C
+	[PublicizedFrom(EAccessModifier.Private)]
+	public void MaterialUpdate(WorldBase _world, Vector3i _blockPos, BlockValue _blockValue)
+	{
+		Chunk chunk = (Chunk)_world.GetChunkFromWorldPos(_blockPos);
+		if (chunk != null)
+		{
+			BlockEntityData blockEntity = chunk.GetBlockEntity(_blockPos);
+			if (blockEntity != null && blockEntity.bHasTransform)
+			{
+				Renderer[] componentsInChildren = blockEntity.transform.GetComponentsInChildren<MeshRenderer>(true);
+				Renderer[] array = componentsInChildren;
+				if (array.Length != 0)
+				{
+					Material material = array[0].material;
+					if (material)
+					{
+						float value = (float)((_blockValue.meta == 0) ? 0 : 20);
+						material.SetFloat("_EmissionMultiply", value);
+						for (int i = 1; i < array.Length; i++)
+						{
+							array[i].material = material;
+						}
+					}
+				}
+			}
+		}
+	}
+}

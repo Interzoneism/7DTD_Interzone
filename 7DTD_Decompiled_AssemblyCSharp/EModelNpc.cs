@@ -1,0 +1,63 @@
+﻿using System;
+using UnityEngine;
+using UnityEngine.Scripting;
+
+// Token: 0x0200049A RID: 1178
+[Preserve]
+public class EModelNpc : EModelBase
+{
+	// Token: 0x06002695 RID: 9877 RVA: 0x000FAE94 File Offset: 0x000F9094
+	public override void Init(World _world, Entity _entity)
+	{
+		this.entity = _entity;
+		EntityClass entityClass = EntityClass.list[this.entity.entityClass];
+		this.ragdollChance = entityClass.RagdollOnDeathChance;
+		this.bHasRagdoll = entityClass.HasRagdoll;
+		this.modelTransformParent = EModelBase.FindModel(base.transform);
+		this.createModel(_world, entityClass);
+		this.setupColliders(this.entity.transform);
+		bool bIsMale = entityClass.bIsMale;
+		if (GameManager.IsDedicatedServer && !this.entity.RootMotion)
+		{
+			this.avatarController = base.transform.gameObject.AddComponent<AvatarControllerDummy>();
+			Animator[] componentsInChildren = base.transform.GetComponentsInChildren<Animator>();
+			for (int i = 0; i < componentsInChildren.Length; i++)
+			{
+				componentsInChildren[i].enabled = false;
+			}
+			if (this.modelTransformParent != null)
+			{
+				this.SwitchModelAndView(false, bIsMale);
+			}
+		}
+		else
+		{
+			this.createAvatarController(entityClass);
+			if (this.modelTransformParent != null)
+			{
+				this.SwitchModelAndView(false, bIsMale);
+			}
+			if (GameManager.IsDedicatedServer && this.avatarController != null && this.entity.RootMotion)
+			{
+				this.avatarController.SetVisible(true);
+			}
+		}
+		base.LookAtInit();
+	}
+
+	// Token: 0x06002696 RID: 9878 RVA: 0x000FAFBD File Offset: 0x000F91BD
+	[PublicizedFrom(EAccessModifier.Private)]
+	public void setupColliders(Transform bodyRoot)
+	{
+		bodyRoot.FindInChilds("Position", false).tag = "E_BP_BipedRoot";
+	}
+
+	// Token: 0x06002697 RID: 9879 RVA: 0x000FAFD8 File Offset: 0x000F91D8
+	[PublicizedFrom(EAccessModifier.Protected)]
+	public override void createAvatarController(EntityClass _ec)
+	{
+		Type type = Type.GetType(_ec.Properties.Values[EntityClass.PropAvatarController]);
+		this.avatarController = (base.transform.gameObject.AddComponent(type) as AvatarController);
+		(this.entity as EntityAlive).ReassignEquipmentTransforms();
+	}
+}

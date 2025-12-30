@@ -1,0 +1,110 @@
+﻿using System;
+using System.Collections.Generic;
+
+// Token: 0x02000F3E RID: 3902
+public static class EntitlementAddressablesMaps
+{
+	// Token: 0x04005EF6 RID: 24310
+	public static readonly StringSpanDictionary<EntitlementSetEnum> AddressablesStringMap = new StringSpanDictionary<EntitlementSetEnum>
+	{
+		{
+			"DLC/MarauderCosmetic".ToLowerInvariant(),
+			EntitlementSetEnum.MarauderCosmetic
+		},
+		{
+			"DLC/HoarderCosmetic".ToLowerInvariant(),
+			EntitlementSetEnum.HoarderCosmetic
+		},
+		{
+			"DLC/DesertCosmetic".ToLowerInvariant(),
+			EntitlementSetEnum.DesertCosmetic
+		},
+		{
+			"DLC/CrimsonWarlordCosmetic".ToLowerInvariant(),
+			EntitlementSetEnum.CrimsonWarlordCosmetic
+		},
+		{
+			"DLC/SamuraiCosmetic".ToLowerInvariant(),
+			EntitlementSetEnum.SamuraiCosmetic
+		},
+		{
+			"TwitchDrops/PimpHatBlue".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchPimpHatBlueCosmetic
+		},
+		{
+			"TwitchDrops/PimpHatPurple".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchPimpHatPurpleCosmetic
+		},
+		{
+			"TwitchDrops/Watcher".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchWatcherCosmetic
+		},
+		{
+			"TwitchDrops/CrackABookStoreGearOutfit".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchCrackABookStoreGearOutfitCosmetic
+		},
+		{
+			"TwitchDrops/MoPowerStoreGearOutfit".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchMoPowerStoreGearOutfitCosmetic
+		},
+		{
+			"TwitchDrops/PassNGasStoreGearOutfit".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchPassNGasStoreGearOutfitCosmetic
+		},
+		{
+			"TwitchDrops/PopNPillsStoreGearOutfit".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchPopNPillsStoreGearOutfitCosmetic
+		},
+		{
+			"TwitchDrops/SavageCountryStoreGearOutfit".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchSavageCountryStoreGearOutfitCosmetic
+		},
+		{
+			"TwitchDrops/ShamwayStoreGearOutfit".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchShamwayStoreGearOutfitCosmetic
+		},
+		{
+			"TwitchDrops/ShotgunMessiahStoreGearOutfit".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchShotgunMessiahStoreGearOutfitCosmetic
+		},
+		{
+			"TwitchDrops/WorkingStiffsStoreGearOutfit".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchWorkingStiffsStoreGearOutfitCosmetic
+		},
+		{
+			"TwitchDrops/CrackABookStoreGearHat".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchCrackABookStoreGearHatCosmetic
+		},
+		{
+			"TwitchDrops/MoPowerStoreGearHat".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchMoPowerStoreGearHatCosmetic
+		},
+		{
+			"TwitchDrops/PassNGasStoreGearHat".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchPassNGasStoreGearHatCosmetic
+		},
+		{
+			"TwitchDrops/PopNPillsStoreGearHat".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchPopNPillsStoreGearHatCosmetic
+		},
+		{
+			"TwitchDrops/SavageCountryStoreGearHat".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchSavageCountryStoreGearHatCosmetic
+		},
+		{
+			"TwitchDrops/ShamwayStoreGearHat".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchShamwayStoreGearHatCosmetic
+		},
+		{
+			"TwitchDrops/ShotgunMessiahStoreGearHat".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchShotgunMessiahStoreGearHatCosmetic
+		},
+		{
+			"TwitchDrops/WorkingStiffsStoreGearHat".ToLowerInvariant(),
+			EntitlementSetEnum.TwitchWorkingStiffsStoreGearHatCosmetic
+		}
+	};
+
+	// Token: 0x04005EF7 RID: 24311
+	public static readonly Dictionary<object, EntitlementSetEnum> AddressablesKeyMap = new Dictionary<object, EntitlementSetEnum>();
+}
