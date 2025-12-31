@@ -1,5 +1,6 @@
 using HarmonyLib;
 using System.Reflection;
+using Platform;
 
 namespace MacheteAnimRandomizer
 {

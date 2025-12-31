@@ -2,6 +2,7 @@ using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Platform;
 
 namespace MacheteAnimRandomizer
 {
@@ -35,8 +36,8 @@ namespace MacheteAnimRandomizer
         {
             static void Postfix(
                 AnimatorMeleeAttackState __instance,
-                Animator animator,
-                AnimatorStateInfo stateInfo,
+                UnityEngine.Animator animator,
+                UnityEngine.AnimatorStateInfo stateInfo,
                 int layerIndex,
                 ref float ___originalMeleeAttackSpeed,
                 ref EntityAlive ___entity,
@@ -149,8 +150,8 @@ namespace MacheteAnimRandomizer
         {
             static void Postfix(
                 AnimatorMeleeAttackState __instance,
-                Animator animator,
-                AnimatorStateInfo stateInfo,
+                UnityEngine.Animator animator,
+                UnityEngine.AnimatorStateInfo stateInfo,
                 int layerIndex,
                 ref EntityAlive ___entity)
             {
@@ -208,8 +209,8 @@ namespace MacheteAnimRandomizer
         {
             static void Postfix(
                 AnimatorMeleeAttackState __instance,
-                Animator animator,
-                AnimatorStateInfo stateInfo,
+                UnityEngine.Animator animator,
+                UnityEngine.AnimatorStateInfo stateInfo,
                 int layerIndex,
                 ref EntityAlive ___entity)
             {
