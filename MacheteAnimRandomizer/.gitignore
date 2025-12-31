@@ -1,0 +1,24 @@
+# Build results
+bin/
+obj/
+*.dll
+*.pdb
+*.cache
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+*.vspscc
+*.vssscc
+
+# Packages
+packages/
+*.nupkg
+
+# Keep the ModInfo.xml in output directory
+!Mods/MacheteAnimRandomizer/ModInfo.xml
