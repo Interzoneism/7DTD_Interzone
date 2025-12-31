@@ -56,7 +56,7 @@ namespace MacheteAnimRandomizer
                     bool isMachete = itemName.Contains("machete");
                     
                     // Alternative: check by item tags if available
-                    if (!isMachete && holdingItem.HasAnyTags(FastTags.Parse("blade,knife,sword")))
+                    if (!isMachete && holdingItem.HasAnyTags(FastTags<TagGroup.Global>.Parse("blade,knife,sword")))
                     {
                         // Could also be a blade-type weapon, let's be inclusive for testing
                         isMachete = itemName.Contains("blade") || itemName.Contains("knife");
@@ -168,10 +168,10 @@ namespace MacheteAnimRandomizer
                     RandomizationData randData = entityRandomData[entityId];
                     
                     // Get the weapon transform if available
-                    if (___entity.emodel?.GetWeaponTransform() != null)
+                    Transform weaponTransform = ___entity.emodel?.GetRightHandTransform();
+
+                    if (weaponTransform != null)
                     {
-                        Transform weaponTransform = ___entity.emodel.GetWeaponTransform();
-                        
                         // Apply position offset (additive to existing position)
                         Vector3 baseLocalPos = weaponTransform.localPosition;
                         weaponTransform.localPosition = baseLocalPos + randData.positionOffset * 0.3f;
@@ -223,10 +223,10 @@ namespace MacheteAnimRandomizer
                     // Reset weapon transform to original state
                     if (entityRandomData.ContainsKey(entityId))
                     {
-                        if (___entity.emodel?.GetWeaponTransform() != null)
+                        Transform weaponTransform = ___entity.emodel?.GetRightHandTransform();
+
+                        if (weaponTransform != null)
                         {
-                            Transform weaponTransform = ___entity.emodel.GetWeaponTransform();
-                            
                             // Reset position by removing our offset
                             Vector3 currentPos = weaponTransform.localPosition;
                             weaponTransform.localPosition = currentPos - entityRandomData[entityId].positionOffset * 0.3f;
