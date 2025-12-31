@@ -36,8 +36,8 @@ namespace MacheteAnimRandomizer
         {
             static void Postfix(
                 AnimatorMeleeAttackState __instance,
-                UnityEngine.Animator animator,
-                UnityEngine.AnimatorStateInfo stateInfo,
+                Animator animator,
+                AnimatorStateInfo stateInfo,
                 int layerIndex,
                 ref float ___originalMeleeAttackSpeed,
                 ref EntityAlive ___entity,
@@ -150,8 +150,8 @@ namespace MacheteAnimRandomizer
         {
             static void Postfix(
                 AnimatorMeleeAttackState __instance,
-                UnityEngine.Animator animator,
-                UnityEngine.AnimatorStateInfo stateInfo,
+                Animator animator,
+                AnimatorStateInfo stateInfo,
                 int layerIndex,
                 ref EntityAlive ___entity)
             {
@@ -209,8 +209,8 @@ namespace MacheteAnimRandomizer
         {
             static void Postfix(
                 AnimatorMeleeAttackState __instance,
-                UnityEngine.Animator animator,
-                UnityEngine.AnimatorStateInfo stateInfo,
+                Animator animator,
+                AnimatorStateInfo stateInfo,
                 int layerIndex,
                 ref EntityAlive ___entity)
             {

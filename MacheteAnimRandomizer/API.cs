@@ -1,6 +1,7 @@
 using HarmonyLib;
 using System.Reflection;
 using Platform;
+using UnityEngine;
 
 namespace MacheteAnimRandomizer
 {
