@@ -47,26 +47,26 @@ namespace MacheteAnimRandomizer
         /// <summary>
         /// Speed +/- range. Example 0.15 => speed will be sampled from [1 - 0.15, 1 + 0.15] (i.e. 0.85..1.15).
         /// </summary>
-        public static float SpeedPlusMinus = 0.15f;
+        public static float SpeedPlusMinus = 0.02f;
 
         /// <summary>
         /// Position soft force per-axis maximum (applied to spring system).
         /// These values add to the weapon's position through the spring system.
         /// Reasonable defaults for visible but not extreme variation.
         /// </summary>
-        public static Vector3 PositionForcePlusMinus = new Vector3(0.03f, 0.03f, 0.02f);
+        public static Vector3 PositionForcePlusMinus = new Vector3(0.09f, 0.13f, 0.08f);
 
         /// <summary>
         /// Rotation soft force per-axis maximum (degrees, applied to spring system).
         /// These values add angular force through the spring system.
         /// </summary>
-        public static Vector3 RotationForcePlusMinus = new Vector3(8f, 8f, 5f);
+        public static Vector3 RotationForcePlusMinus = new Vector3(34f, 80f, 52f);
 
         /// <summary>
         /// Number of frames over which to apply the soft force (smoothing).
         /// Higher = smoother but slower effect. Lower = more immediate.
         /// </summary>
-        public static int SoftForceFrames = 15;
+        public static int SoftForceFrames = 3;
 
         /// <summary>
         /// Whether to affect all melee weapons (true) or only machete-type (false).
@@ -118,69 +118,61 @@ namespace MacheteAnimRandomizer
         /// <summary>
         /// PRIMARY PATCH: Hook into the FPV melee attack system to inject random forces.
         /// 
-        /// The vp_FPWeaponMeleeAttack.UpdateAttack method is called each frame during an attack.
-        /// When a new swing starts, the game calls m_Weapon.AddSoftForce() with swing forces.
-        /// We patch this to add additional random forces at the same time.
+        /// We patch vp_FPWeapon.AddSoftForce directly and modify the forces being applied
+        /// to add randomization before they reach the spring system.
         /// </summary>
-        [HarmonyPatch(typeof(vp_FPWeaponMeleeAttack))]
-        [HarmonyPatch("UpdateAttack")]
+        [HarmonyPatch(typeof(vp_FPWeapon))]
+        [HarmonyPatch("AddSoftForce")]
         public class Patch_FPVMeleeRandomForce
         {
-            /// <summary>
-            /// Prefix runs before the original method. We check if a new swing is about to start
-            /// (same conditions the game uses) and if so, prepare to inject random forces.
-            /// </summary>
-            static void Prefix(vp_FPWeaponMeleeAttack __instance, ref bool __state)
-            {
-                __state = false; // Track whether we should apply forces in Postfix
+            private static float lastTriggerTime = 0f;
+            private static readonly float cooldown = 0.1f; // Prevent multiple triggers per swing
+            private static bool isApplyingRandomForce = false; // Prevent recursion
 
+            /// <summary>
+            /// Prefix modifies the forces before they are applied to add randomization.
+            /// </summary>
+            static void Prefix(vp_FPWeapon __instance, ref Vector3 PositionForce, ref Vector3 RotationForce, ref int Frames)
+            {
                 try
                 {
-                    if (__instance == null) return;
-
-                    var player = __instance.Player;
-                    if (player == null || !player.Attack.Active || player.SetWeapon.Active)
+                    // Prevent recursion if we're already applying random forces
+                    if (isApplyingRandomForce)
                         return;
 
-                    var weapon = __instance.m_Weapon;
-                    if (weapon == null || !weapon.Wielded)
-                        return;
+                    // Debug: Log all AddSoftForce calls to see what's happening
+                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] AddSoftForce called: Pos={PositionForce}, Rot={RotationForce}, Frames={Frames}, RotMag={RotationForce.magnitude}");
 
-                    // Check if this is a NEW swing (not already swinging)
-                    if (Time.time < __instance.m_NextAllowedSwingTime)
+                    // Only trigger once per swing (cooldown prevents double-application)
+                    if (Time.time - lastTriggerTime < cooldown)
+                    {
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Skipped - cooldown active ({Time.time - lastTriggerTime:F3}s ago)");
                         return;
+                    }
+
+                    // Check if this is a melee weapon swing (swings have rotation force)
+                    if (RotationForce.magnitude < 0.1f)
+                    {
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Skipped - rotation magnitude too low: {RotationForce.magnitude}");
+                        return;
+                    }
 
                     // Get local player and check weapon type
                     var localPlayer = GameManager.Instance?.World?.GetPrimaryPlayer();
                     if (localPlayer == null || localPlayer.inventory?.holdingItem == null)
+                    {
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Skipped - no player or holding item");
                         return;
+                    }
 
-                    if (!IsMeleeWeaponToRandomize(localPlayer.inventory.holdingItem))
+                    ItemClass holdingItem = localPlayer.inventory.holdingItem;
+                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Holding item: {holdingItem.GetItemName()}");
+
+                    if (!IsMeleeWeaponToRandomize(holdingItem))
+                    {
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Skipped - not a melee weapon to randomize");
                         return;
-
-                    // A new swing is about to start - mark for postfix processing
-                    __state = true;
-                }
-                catch (Exception ex)
-                {
-                    UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Prefix error: {ex.Message}");
-                }
-            }
-
-            /// <summary>
-            /// Postfix runs after the original method. If a new swing started, inject random forces.
-            /// </summary>
-            static void Postfix(vp_FPWeaponMeleeAttack __instance, bool __state)
-            {
-                if (!__state) return; // Only proceed if Prefix detected a new swing
-
-                try
-                {
-                    var weapon = __instance.m_Weapon;
-                    if (weapon == null) return;
-
-                    var localPlayer = GameManager.Instance?.World?.GetPrimaryPlayer();
-                    if (localPlayer == null) return;
+                    }
 
                     int entityId = localPlayer.entityId;
 
@@ -197,9 +189,14 @@ namespace MacheteAnimRandomizer
                         SampleSymmetric(RotationForcePlusMinus.z)
                     );
 
-                    // Apply the random forces via the spring system
-                    // This adds ON TOP of the existing swing forces
-                    weapon.AddSoftForce(randomPosForce, randomRotForce, SoftForceFrames);
+                    // ADD random forces to the existing forces (modify by reference)
+                    Vector3 originalPos = PositionForce;
+                    Vector3 originalRot = RotationForce;
+
+                    PositionForce += randomPosForce;
+                    RotationForce += randomRotForce;
+
+                    lastTriggerTime = Time.time;
 
                     // Store the data for debugging/tracking
                     entityAttackData[entityId] = new AttackRandomData
@@ -210,13 +207,15 @@ namespace MacheteAnimRandomizer
                         speedMultiplier = 1f // Speed handled separately in animator patch
                     };
 
-                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Applied FPV random forces:");
-                    UnityEngine.Debug.Log($"  Position Force: {randomPosForce}");
-                    UnityEngine.Debug.Log($"  Rotation Force: {randomRotForce}");
+                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] ===== RANDOMIZATION APPLIED =====");
+                    UnityEngine.Debug.Log($"  Random Position Force: {randomPosForce}");
+                    UnityEngine.Debug.Log($"  Random Rotation Force: {randomRotForce}");
+                    UnityEngine.Debug.Log($"  Original Swing: Pos={originalPos}, Rot={originalRot}");
+                    UnityEngine.Debug.Log($"  Final Forces: Pos={PositionForce}, Rot={RotationForce}");
                 }
                 catch (Exception ex)
                 {
-                    UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Postfix error: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] AddSoftForce patch error: {ex}");
                 }
             }
         }

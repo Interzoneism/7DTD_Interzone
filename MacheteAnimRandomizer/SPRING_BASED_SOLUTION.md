@@ -20,9 +20,10 @@ We inject **additional random forces** into this spring system when an attack st
 ## Implementation
 
 ### Patch 1: `Patch_FPVMeleeRandomForce`
-- **Target**: `vp_FPWeaponMeleeAttack.UpdateAttack`
-- **Prefix**: Detects when a new swing is about to start
-- **Postfix**: Injects random position/rotation forces via `weapon.AddSoftForce()`
+- **Target**: `vp_FPWeapon.AddSoftForce` (Prefix)
+- **Detects melee swings**: Checks if rotation force magnitude > 0.1 (melee swings have significant rotation)
+- **Modifies forces**: Adds random position/rotation forces to the parameters before they reach the spring system
+- **Cooldown**: 0.1s between triggers to prevent double-randomization per swing
 
 ### Patch 2: `Patch_RandomizeMeleeSpeed`
 - **Target**: `AnimatorMeleeAttackState.OnStateEnter`
