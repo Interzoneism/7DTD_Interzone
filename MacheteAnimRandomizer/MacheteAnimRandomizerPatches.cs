@@ -151,25 +151,90 @@ namespace MacheteAnimRandomizer
         }
 
         /// <summary>
-        /// PATCH 1: Hook ItemActionDynamicMelee.StartAttack to detect when a melee attack starts.
-        /// This is the most reliable point to inject randomization.
+        /// PATCH 1: Hook the melee action start point. Some game builds renamed the entry
+        /// (StartAttack/StartAction/etc), so we resolve it dynamically and skip the patch
+        /// cleanly if nothing matches to avoid Harmony errors.
         /// </summary>
-        [HarmonyPatch(typeof(ItemActionDynamicMelee))]
-        [HarmonyPatch("StartAttack")]
+        [HarmonyPatch]
         public class Patch_StartAttack
         {
-            static void Postfix(ItemActionData _actionData)
+            private static MethodBase _targetMethod;
+
+            static bool Prepare()
+            {
+                _targetMethod = FindTargetMethod();
+                if (_targetMethod == null)
+                {
+                    if (DebugLogging)
+                        UnityEngine.Debug.LogWarning("[MacheteAnimRandomizer] No StartAttack/StartAction method found; skipping Patch_StartAttack.");
+                    return false;
+                }
+
+                return true;
+            }
+
+            static MethodBase TargetMethod()
+            {
+                return _targetMethod;
+            }
+
+            private static MethodBase FindTargetMethod()
+            {
+                var type = typeof(ItemActionDynamicMelee);
+
+                // Common signatures observed across builds
+                var signatures = new List<Type[]>
+                {
+                    new[] { typeof(ItemActionData) },
+                    new[] { typeof(ItemActionData), typeof(bool) },
+                    new[] { typeof(ItemActionData), typeof(bool), typeof(bool) }
+                };
+
+                var names = new[]
+                {
+                    "StartAttack",
+                    "StartAction",
+                    "StartActionInternal"
+                };
+
+                foreach (var name in names)
+                {
+                    foreach (var sig in signatures)
+                    {
+                        var method = AccessTools.DeclaredMethod(type, name, sig);
+                        if (method != null)
+                            return method;
+                    }
+                }
+
+                // Fallback: first void method whose first parameter is ItemActionData and name contains Start/Attack
+                return AccessTools.FirstMethod(type, m =>
+                {
+                    var parameters = m.GetParameters();
+                    return m.ReturnType == typeof(void)
+                        && parameters.Length > 0
+                        && typeof(ItemActionData).IsAssignableFrom(parameters[0].ParameterType)
+                        && (m.Name.IndexOf("Start", StringComparison.OrdinalIgnoreCase) >= 0
+                            || m.Name.IndexOf("Attack", StringComparison.OrdinalIgnoreCase) >= 0);
+                });
+            }
+
+            static void Postfix(object[] __args)
             {
                 try
                 {
+                    var actionData = __args != null && __args.Length > 0
+                        ? __args[0] as ItemActionData
+                        : null;
+
                     // Prevent multiple triggers per attack
                     if (Time.time - lastAttackTime < attackCooldown)
                         return;
 
-                    if (_actionData?.invData?.holdingEntity == null)
+                    if (actionData?.invData?.holdingEntity == null)
                         return;
 
-                    EntityAlive holdingEntity = _actionData.invData.holdingEntity;
+                    EntityAlive holdingEntity = actionData.invData.holdingEntity;
 
                     // Only affect local player
                     if (!(holdingEntity is EntityPlayerLocal localPlayer))
