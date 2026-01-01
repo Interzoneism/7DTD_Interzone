@@ -74,6 +74,7 @@
     </None>
     <None Include="packages.config" />
     <None Include="POSITION_ROTATION_TEST_GUIDE.md" />
+    <None Include="SPRING_BASED_SOLUTION.md" />
     <None Include="TESTING_GUIDE.md" />
   </ItemGroup>
   <ItemGroup />
