@@ -13,21 +13,21 @@ namespace MacheteAnimRandomizer
     {
         public void InitMod(Mod _modInstance)
         {
-            Log.Out("[MacheteAnimRandomizer] Loading Machete Animation Randomizer v1.0.0");
-            
+            UnityEngine.Debug.Log("[MacheteAnimRandomizer] Loading Machete Animation Randomizer v1.0.0");
+
             try
             {
                 // Initialize Harmony and apply all patches
                 var harmony = new Harmony("com.interzoneism.macheteanimrandomizer");
                 harmony.PatchAll(Assembly.GetExecutingAssembly());
-                
-                Log.Out("[MacheteAnimRandomizer] Harmony patches applied successfully");
-                Log.Out("[MacheteAnimRandomizer] Mod initialized - machete attacks will now be randomized!");
+
+                UnityEngine.Debug.Log("[MacheteAnimRandomizer] Harmony patches applied successfully");
+                UnityEngine.Debug.Log("[MacheteAnimRandomizer] Mod initialized - machete attacks will now be randomized!");
             }
             catch (System.Exception ex)
             {
-                Log.Error($"[MacheteAnimRandomizer] Failed to initialize mod: {ex.Message}");
-                Log.Error($"[MacheteAnimRandomizer] Stack trace: {ex.StackTrace}");
+                UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Failed to initialize mod: {ex.Message}");
+                UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Stack trace: {ex.StackTrace}");
             }
         }
     }

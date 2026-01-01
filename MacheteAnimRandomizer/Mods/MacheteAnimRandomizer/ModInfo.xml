@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xml>
+  <Name value="MacheteAnimation" />
+  <DisplayName value="MacheteAnimation" />
+  <Version value="1.0.0" />
+  <Description value="Randomizes machete melee attack animations with varied speed, rotation, and position for each attack." />
+  <Author value="Interzoneism" />
+  <Website value="" />
+</xml>

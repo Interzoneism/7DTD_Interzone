@@ -25,7 +25,44 @@ namespace MacheteAnimRandomizer
             public Vector3 rotationOffset;
             public float lastAttackTime;
         }
-        
+
+        // --------------------------
+        // Configurable ranges (easy to change)
+        // --------------------------
+        /// <summary>
+        /// Speed +/- range. Example 0.1 => speed will be sampled from [1 - 0.1, 1 + 0.1] (i.e. 0.9..1.1).
+        /// Set this at runtime to change variation globally.
+        /// </summary>
+        public static float SpeedPlusMinus = 0.1f;
+
+        /// <summary>
+        /// Position offset per-axis maximum absolute value (meters). The actual offset is sampled uniformly
+        /// from [-PositionPlusMinus.x .. +PositionPlusMinus.x], etc.
+        /// Default matches previous behavior: X/Y +/-0.1, Z +/-0.075.
+        /// </summary>
+        public static Vector3 PositionPlusMinus = new Vector3(0.1f, 0.1f, 0.075f);
+
+        /// <summary>
+        /// Rotation offset per-axis maximum absolute value (degrees). Sampled from [-RotationPlusMinus.x .. +RotationPlusMinus.x], etc.
+        /// Default matches previous behavior: Pitch +/-15, Yaw +/-10, Roll +/-20.
+        /// </summary>
+        public static Vector3 RotationPlusMinus = new Vector3(15f, 10f, 20f);
+
+        /// <summary>
+        /// Factor applied when writing sampled position offsets into the weapon transform during update.
+        /// Matches previous hardcoded 0.3f; adjustable here.
+        /// </summary>
+        public static float WeaponPositionApplyFactor = 0.3f;
+
+        // --------------------------
+        // Helper: sample symmetric range
+        // --------------------------
+        private static float SampleSymmetric(float halfRange)
+        {
+            // returns value in [-halfRange, +halfRange]
+            return (float)((random.NextDouble() * 2.0) * halfRange - halfRange);
+        }
+
         /// <summary>
         /// Patch AnimatorMeleeAttackState.OnStateEnter to randomize animation properties
         /// for machete attacks (normal attacks only, not power attacks).
@@ -75,24 +112,24 @@ namespace MacheteAnimRandomizer
                     int entityId = ___entity.entityId;
                     float currentTime = Time.time;
                     
-                    // Generate new random values for this attack
+                    // Generate new random values for this attack using configurable ranges
                     RandomizationData randData = new RandomizationData
                     {
-                        // Speed: Random between 0.8x and 1.5x
-                        speedMultiplier = (float)(0.8 + random.NextDouble() * 0.7),
+                        // Speed: sample around 1.0 using SpeedPlusMinus
+                        speedMultiplier = 1f + SampleSymmetric(SpeedPlusMinus),
                         
-                        // Position offset: Small random offsets in all axes
+                        // Position offset: sample per-axis from configured symmetric ranges
                         positionOffset = new Vector3(
-                            (float)(random.NextDouble() * 0.2 - 0.1),  // -0.1 to +0.1
-                            (float)(random.NextDouble() * 0.2 - 0.1),  // -0.1 to +0.1
-                            (float)(random.NextDouble() * 0.15 - 0.075) // -0.075 to +0.075
+                            SampleSymmetric(PositionPlusMinus.x),
+                            SampleSymmetric(PositionPlusMinus.y),
+                            SampleSymmetric(PositionPlusMinus.z)
                         ),
                         
-                        // Rotation offset: Random rotation angles (in degrees)
+                        // Rotation offset: sample per-axis from configured symmetric ranges (degrees)
                         rotationOffset = new Vector3(
-                            (float)(random.NextDouble() * 30 - 15),    // Pitch: -15 to +15 degrees
-                            (float)(random.NextDouble() * 20 - 10),    // Yaw: -10 to +10 degrees
-                            (float)(random.NextDouble() * 40 - 20)     // Roll: -20 to +20 degrees
+                            SampleSymmetric(RotationPlusMinus.x),
+                            SampleSymmetric(RotationPlusMinus.y),
+                            SampleSymmetric(RotationPlusMinus.z)
                         ),
                         
                         lastAttackTime = currentTime
@@ -100,19 +137,19 @@ namespace MacheteAnimRandomizer
                     
                     entityRandomData[entityId] = randData;
                     
-                    // Apply randomized speed
-                    float randomizedSpeed = ___originalMeleeAttackSpeed * randData.speedMultiplier;
-                    animator.SetFloat("MeleeAttackSpeed", randomizedSpeed);
-                    
-                    // Log the randomization for debugging (can be disabled in production)
-                    Log.Out($"[MacheteAnimRandomizer] Randomized {itemName} attack for entity {entityId}:");
-                    Log.Out($"  Speed: {randData.speedMultiplier:F2}x (from {___originalMeleeAttackSpeed:F2} to {randomizedSpeed:F2})");
-                    Log.Out($"  Position offset: {randData.positionOffset}");
-                    Log.Out($"  Rotation offset: {randData.rotationOffset}");
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"[MacheteAnimRandomizer] Error in Patch_RandomizeMacheteAnimation: {ex.Message}");
+                        // Apply randomized speed
+                        float randomizedSpeed = ___originalMeleeAttackSpeed * randData.speedMultiplier;
+                        animator.SetFloat("MeleeAttackSpeed", randomizedSpeed);
+
+                        // Log the randomization for debugging (can be disabled in production)
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Randomized {itemName} attack for entity {entityId}:");
+                        UnityEngine.Debug.Log($"  Speed: {randData.speedMultiplier:F2}x (from {___originalMeleeAttackSpeed:F2} to {randomizedSpeed:F2})");
+                        UnityEngine.Debug.Log($"  Position offset: {randData.positionOffset}");
+                        UnityEngine.Debug.Log($"  Rotation offset: {randData.rotationOffset}");
+                    }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Error in Patch_RandomizeMacheteAnimation: {ex.Message}");
                 }
             }
         }
@@ -131,11 +168,11 @@ namespace MacheteAnimRandomizer
                 {
                     // This will be called once on initialization
                     // The actual per-attack randomization is handled in the OnStateEnter patch
-                    Log.Out("[MacheteAnimRandomizer] Weapon offset system initialized");
+                    UnityEngine.Debug.Log("[MacheteAnimRandomizer] Weapon offset system initialized");
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"[MacheteAnimRandomizer] Error in Patch_WeaponTransformOffset: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Error in Patch_WeaponTransformOffset: {ex.Message}");
                 }
             }
         }
@@ -173,9 +210,9 @@ namespace MacheteAnimRandomizer
 
                     if (weaponTransform != null)
                     {
-                        // Apply position offset (additive to existing position)
+                        // Apply position offset (additive to existing position) using configured apply factor
                         Vector3 baseLocalPos = weaponTransform.localPosition;
-                        weaponTransform.localPosition = baseLocalPos + randData.positionOffset * 0.3f;
+                        weaponTransform.localPosition = baseLocalPos + randData.positionOffset * WeaponPositionApplyFactor;
                         
                         // Apply rotation offset (additive to existing rotation)
                         Quaternion baseLocalRot = weaponTransform.localRotation;
@@ -189,7 +226,7 @@ namespace MacheteAnimRandomizer
                     // Only log once per entity
                     if (!loggedErrors.Contains(___entity?.entityId ?? -1))
                     {
-                        Log.Warning($"[MacheteAnimRandomizer] Error applying transform: {ex.Message}");
+                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Error applying transform: {ex.Message}");
                         if (___entity != null)
                             loggedErrors.Add(___entity.entityId);
                     }
@@ -228,9 +265,9 @@ namespace MacheteAnimRandomizer
 
                         if (weaponTransform != null)
                         {
-                            // Reset position by removing our offset
+                            // Reset position by removing our offset (use same factor as when applied)
                             Vector3 currentPos = weaponTransform.localPosition;
-                            weaponTransform.localPosition = currentPos - entityRandomData[entityId].positionOffset * 0.3f;
+                            weaponTransform.localPosition = currentPos - entityRandomData[entityId].positionOffset * WeaponPositionApplyFactor;
                             
                             // Reset rotation by removing our offset
                             Quaternion offsetRot = Quaternion.Euler(entityRandomData[entityId].rotationOffset);
@@ -241,13 +278,13 @@ namespace MacheteAnimRandomizer
                         // Just mark it as old by setting a very old time
                         entityRandomData[entityId].lastAttackTime = Time.time - 1000f;
                     }
+                        }
+                        catch (Exception ex)
+                        {
+                            UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Error in cleanup: {ex.Message}");
+                        }
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Log.Warning($"[MacheteAnimRandomizer] Error in cleanup: {ex.Message}");
-                }
-            }
-        }
         
         /// <summary>
         /// Periodic cleanup of old entity data to prevent memory leaks
