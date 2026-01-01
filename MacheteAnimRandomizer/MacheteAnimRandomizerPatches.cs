@@ -120,9 +120,12 @@ namespace MacheteAnimRandomizer
         /// 
         /// We patch vp_FPWeapon.AddSoftForce directly and modify the forces being applied
         /// to add randomization before they reach the spring system.
+        /// 
+        /// NOTE: AddSoftForce has 4 overloads, we target the one with signature:
+        /// AddSoftForce(Vector3 positional, Vector3 angular, int frames)
         /// </summary>
         [HarmonyPatch(typeof(vp_FPWeapon))]
-        [HarmonyPatch("AddSoftForce")]
+        [HarmonyPatch("AddSoftForce", new Type[] { typeof(Vector3), typeof(Vector3), typeof(int) })]
         public class Patch_FPVMeleeRandomForce
         {
             private static float lastTriggerTime = 0f;
