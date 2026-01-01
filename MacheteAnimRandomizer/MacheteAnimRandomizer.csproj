@@ -66,11 +66,14 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="CONSOLE_COMMANDS.md" />
+    <None Include="DEEP_DIVE_ANALYSIS.md" />
     <None Include="FIX_EXPLANATION.md" />
+    <None Include="FIX_SUMMARY.md" />
     <None Include="ModInfo.xml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="packages.config" />
+    <None Include="POSITION_ROTATION_TEST_GUIDE.md" />
     <None Include="TESTING_GUIDE.md" />
   </ItemGroup>
   <ItemGroup />
