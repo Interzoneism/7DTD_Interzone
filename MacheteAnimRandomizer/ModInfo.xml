@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <xml>
-  <Name value="Machete Animation Randomizer" />
-  <DisplayName value="Machete Animation Randomizer" />
+  <Name value="MacheteAnimRandomizer" />
+  <DisplayName value="MacheteAnimRandomizer" />
   <Version value="1.0.0" />
   <Description value="Randomizes machete melee attack animations with varied speed, rotation, and position for each attack." />
   <Author value="Interzoneism" />
