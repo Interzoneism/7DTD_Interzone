@@ -17,9 +17,8 @@ namespace MacheteAnimRandomizer
     /// SOLUTION:
     /// The game uses a spring-based system (vp_FPWeapon) that ADDS position/rotation 
     /// forces on top of the base weapon position. The vp_FPWeaponMeleeAttack class already
-    /// uses AddSoftForce() to create swing motion. We inject random additional forces
-    /// into this spring system when an attack starts, creating procedural variation
-    /// without fighting the animator.
+    /// uses AddSoftForce() to create swing motion. We modify the force values that get
+    /// applied to inject randomization into the spring system.
     /// 
     /// For speed variation, we modify the "MeleeAttackSpeed" animator parameter which
     /// the game already uses to control attack speed.
@@ -116,68 +115,33 @@ namespace MacheteAnimRandomizer
         }
 
         /// <summary>
-        /// PRIMARY PATCH: Hook into the FPV melee attack system to inject random forces.
-        /// 
-        /// We patch vp_FPWeapon.AddSoftForce directly and modify the forces being applied
-        /// to add randomization before they reach the spring system.
-        /// 
-        /// NOTE: AddSoftForce has 4 overloads, we target the one with signature:
-        /// AddSoftForce(Vector3 positional, Vector3 angular, int frames)
+        /// PRIMARY PATCH: Hook into vp_FPWeapon.AddSoftForce to modify the forces being applied.
+        /// This intercepts the existing swing forces and adds random variation to them.
         /// </summary>
         [HarmonyPatch(typeof(vp_FPWeapon))]
-        [HarmonyPatch("AddSoftForce", new Type[] { typeof(Vector3), typeof(Vector3), typeof(int) })]
+        [HarmonyPatch("AddSoftForce")]
         public class Patch_FPVMeleeRandomForce
         {
-            private static float lastTriggerTime = 0f;
-            private static readonly float cooldown = 0.1f; // Prevent multiple triggers per swing
-            private static bool isApplyingRandomForce = false; // Prevent recursion
-
             /// <summary>
-            /// Prefix modifies the forces before they are applied to add randomization.
+            /// Prefix runs before AddSoftForce. We modify the force parameters before they're applied.
             /// </summary>
-            static void Prefix(vp_FPWeapon __instance, ref Vector3 PositionForce, ref Vector3 RotationForce, ref int Frames)
+            static void Prefix(ref Vector3 _force, ref Vector3 _angularForce)
             {
                 try
                 {
-                    // Prevent recursion if we're already applying random forces
-                    if (isApplyingRandomForce)
-                        return;
-
-                    // Debug: Log all AddSoftForce calls to see what's happening
-                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] AddSoftForce called: Pos={PositionForce}, Rot={RotationForce}, Frames={Frames}, RotMag={RotationForce.magnitude}");
-
-                    // Only trigger once per swing (cooldown prevents double-application)
-                    if (Time.time - lastTriggerTime < cooldown)
-                    {
-                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Skipped - cooldown active ({Time.time - lastTriggerTime:F3}s ago)");
-                        return;
-                    }
-
-                    // Check if this is a melee weapon swing (swings have rotation force)
-                    if (RotationForce.magnitude < 0.1f)
-                    {
-                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Skipped - rotation magnitude too low: {RotationForce.magnitude}");
-                        return;
-                    }
-
                     // Get local player and check weapon type
                     var localPlayer = GameManager.Instance?.World?.GetPrimaryPlayer();
                     if (localPlayer == null || localPlayer.inventory?.holdingItem == null)
                     {
-                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Skipped - no player or holding item");
                         return;
                     }
 
                     ItemClass holdingItem = localPlayer.inventory.holdingItem;
-                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Holding item: {holdingItem.GetItemName()}");
 
                     if (!IsMeleeWeaponToRandomize(holdingItem))
                     {
-                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Skipped - not a melee weapon to randomize");
                         return;
                     }
-
-                    int entityId = localPlayer.entityId;
 
                     // Generate random force variations
                     Vector3 randomPosForce = new Vector3(
@@ -192,33 +156,16 @@ namespace MacheteAnimRandomizer
                         SampleSymmetric(RotationForcePlusMinus.z)
                     );
 
-                    // ADD random forces to the existing forces (modify by reference)
-                    Vector3 originalPos = PositionForce;
-                    Vector3 originalRot = RotationForce;
+                    // Add our random forces to the existing forces
+                    _force += randomPosForce;
+                    _angularForce += randomRotForce;
 
-                    PositionForce += randomPosForce;
-                    RotationForce += randomRotForce;
-
-                    lastTriggerTime = Time.time;
-
-                    // Store the data for debugging/tracking
-                    entityAttackData[entityId] = new AttackRandomData
-                    {
-                        lastAttackTime = Time.time,
-                        appliedPositionForce = randomPosForce,
-                        appliedRotationForce = randomRotForce,
-                        speedMultiplier = 1f // Speed handled separately in animator patch
-                    };
-
-                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] ===== RANDOMIZATION APPLIED =====");
-                    UnityEngine.Debug.Log($"  Random Position Force: {randomPosForce}");
-                    UnityEngine.Debug.Log($"  Random Rotation Force: {randomRotForce}");
-                    UnityEngine.Debug.Log($"  Original Swing: Pos={originalPos}, Rot={originalRot}");
-                    UnityEngine.Debug.Log($"  Final Forces: Pos={PositionForce}, Rot={RotationForce}");
+                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Modified force for {holdingItem.GetItemName()}. " +
+                        $"Pos delta: {randomPosForce}, Rot delta: {randomRotForce}");
                 }
-                catch (Exception ex)
+                catch (Exception e)
                 {
-                    UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] AddSoftForce patch error: {ex}");
+                    UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Error in Prefix patch: {e}");
                 }
             }
         }
