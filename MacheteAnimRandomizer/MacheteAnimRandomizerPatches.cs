@@ -27,6 +27,10 @@ namespace MacheteAnimRandomizer
             public int holdType; // Store the weapon hold type
             public Vector3 originalPosition; // Store original position
             public Vector3 originalRotation; // Store original rotation
+
+            // FPV-specific
+            public Vector3 originalFpvPositionOffset;
+            public Vector3 originalFpvRotationOffset;
         }
 
         // --------------------------
@@ -150,45 +154,143 @@ namespace MacheteAnimRandomizer
 
                     entityRandomData[entityId] = randData;
 
+                     // Apply randomized position/rotation via the same mechanism the game uses
+                     // (AvatarMultiBodyController.SetInRightHand + Inventory.setHoldingItemTransform).
+                     AnimationGunjointOffsetData.AnimationGunjointOffset[holdType] = new AnimationGunjointOffsetData.AnimationGunjointOffsets(
+                         originalPos + randData.positionOffset,
+                         originalRot + randData.rotationOffset
+                     );
+
                     // Apply randomized speed
                     float randomizedSpeed = ___originalMeleeAttackSpeed * randData.speedMultiplier;
                     animator.SetFloat("MeleeAttackSpeed", randomizedSpeed);
-
-                    // IMPORTANT: Directly apply to heldItemTransform for immediate visual effect
-                    // This is critical because SetInRightHand is not called during attacks
-                    AvatarController avatarController = ___entity.emodel?.avatarController;
-                    if (avatarController != null)
-                    {
-                        Transform heldTransform = avatarController.GetRightHandTransform();
-                        if (heldTransform != null && heldTransform.childCount > 0)
-                        {
-                            Transform weaponTransform = heldTransform.GetChild(0);
-                            if (weaponTransform != null)
-                            {
-                                // Apply position offset (additive to current position)
-                                weaponTransform.localPosition += randData.positionOffset;
-
-                                // Apply rotation offset (additive to current rotation)
-                                weaponTransform.localRotation *= Quaternion.Euler(randData.rotationOffset);
-
-                                UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Applied transform to weapon:");
-                                UnityEngine.Debug.Log($"  New Position: {weaponTransform.localPosition}");
-                                UnityEngine.Debug.Log($"  New Rotation: {weaponTransform.localEulerAngles}");
-                            }
-                        }
-                    }
 
                     // Log the randomization for debugging (can be disabled in production)
                     UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Randomized {itemName} attack for entity {entityId}:");
                     UnityEngine.Debug.Log($"  Speed: {randData.speedMultiplier:F2}x (from {___originalMeleeAttackSpeed:F2} to {randomizedSpeed:F2})");
                     UnityEngine.Debug.Log($"  Position Offset: {randData.positionOffset}");
                     UnityEngine.Debug.Log($"  Rotation Offset: {randData.rotationOffset}");
-                    }
-                    catch (Exception ex)
+                 }
+                 catch (Exception ex)
+                 {
+                     UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Error in Patch_RandomizeMacheteAnimation: {ex.Message}");
+                     UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Stack trace: {ex.StackTrace}");
+                 }
+            }
+        }
+
+         /// <summary>
+         /// Restore original offsets after the attack state ends.
+         /// </summary>
+         [HarmonyPatch(typeof(AnimatorMeleeAttackState))]
+         [HarmonyPatch("OnStateExit")]
+         public class Patch_RestoreMacheteOffsets
+         {
+             static void Postfix(ref EntityAlive ___entity, ref int ___actionIndex)
+             {
+                 try
+                 {
+                     if (___entity == null || ___entity.inventory?.holdingItem == null)
+                         return;
+
+                     if (___actionIndex != 0)
+                         return;
+
+                     int entityId = ___entity.entityId;
+                     if (!entityRandomData.TryGetValue(entityId, out var randData))
+                         return;
+
+                     AnimationGunjointOffsetData.AnimationGunjointOffset[randData.holdType] = new AnimationGunjointOffsetData.AnimationGunjointOffsets(
+                         randData.originalPosition,
+                         randData.originalRotation
+                     );
+                 }
+                 catch (Exception ex)
+                 {
+                     UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Error restoring offsets: {ex.Message}");
+                 }
+             }
+         }
+
+        /// <summary>
+        /// FPV melee uses vp_Weapon/vp_FPWeapon spring offsets, not AnimationGunjointOffsetData.
+        /// Randomize `vp_FPWeapon.PositionOffset` and `vp_FPWeapon.RotationOffset` when a swing starts.
+        /// </summary>
+        [HarmonyPatch(typeof(vp_FPWeaponMeleeAttack))]
+        [HarmonyPatch("UpdateAttack")]
+        public class Patch_FpvMeleeRandomizeWeaponOffsets
+        {
+            static bool Prefix(vp_FPWeaponMeleeAttack __instance)
+            {
+                try
+                {
+                    // Mirror the game's early-outs so we only randomize on a real swing.
+                    if (__instance == null)
+                        return true;
+
+                    var player = __instance.Player;
+                    if (player == null || !player.Attack.Active || player.SetWeapon.Active)
+                        return true;
+
+                    var weapon = __instance.m_Weapon;
+                    if (weapon == null || !weapon.Wielded)
+                        return true;
+
+                    if (Time.time < __instance.m_NextAllowedSwingTime)
+                        return true;
+
+                    // Only for local FPV player holding a machete (or blade tags).
+                    var fp = GameManager.Instance?.World?.GetPrimaryPlayer();
+                    if (fp == null || fp.inventory?.holdingItem == null)
+                        return true;
+
+                    ItemClass holdingItem = fp.inventory.holdingItem;
+                    string itemName = holdingItem.GetItemName().ToLower();
+                    bool isMachete = itemName.Contains("machete");
+                    if (!isMachete && holdingItem.HasAnyTags(FastTags<TagGroup.Global>.Parse("blade,knife,sword")))
                     {
-                        UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Error in Patch_RandomizeMacheteAnimation: {ex.Message}");
-                        UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Stack trace: {ex.StackTrace}");
+                        isMachete = itemName.Contains("blade") || itemName.Contains("knife") || itemName.Contains("sword");
+                    }
+                    if (!isMachete)
+                        return true;
+
+                    int entityId = fp.entityId;
+                    float currentTime = Time.time;
+
+                    // Base offsets used by vp_FPWeapon.Refresh each frame.
+                    Vector3 originalPosOff = weapon.PositionOffset;
+                    Vector3 originalRotOff = weapon.RotationOffset;
+
+                    var randData = new RandomizationData
+                    {
+                        speedMultiplier = 1f,
+                        positionOffset = new Vector3(
+                            SampleSymmetric(PositionPlusMinus.x),
+                            SampleSymmetric(PositionPlusMinus.y),
+                            SampleSymmetric(PositionPlusMinus.z)
+                        ),
+                        rotationOffset = new Vector3(
+                            SampleSymmetric(RotationPlusMinus.x),
+                            SampleSymmetric(RotationPlusMinus.y),
+                            SampleSymmetric(RotationPlusMinus.z)
+                        ),
+                        lastAttackTime = currentTime,
+                        originalFpvPositionOffset = originalPosOff,
+                        originalFpvRotationOffset = originalRotOff
+                    };
+
+                    entityRandomData[entityId] = randData;
+
+                    weapon.PositionOffset = originalPosOff + randData.positionOffset;
+                    weapon.RotationOffset = originalRotOff + randData.rotationOffset;
+                    weapon.Refresh();
                 }
+                catch
+                {
+                    // Avoid breaking attack flow.
+                }
+
+                return true;
             }
         }
         
@@ -249,11 +351,7 @@ namespace MacheteAnimRandomizer
                     // Directly apply offsets to the transform that was just set
                     if (_transform != null)
                     {
-                        // Apply position offset (additive)
-                        _transform.localPosition += randData.positionOffset;
-
-                        // Apply rotation offset (multiplicative)
-                        _transform.localRotation *= Quaternion.Euler(randData.rotationOffset);
+                        // Offsets are applied via AnimationGunjointOffsetData; nothing to do here.
 
                         UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Re-applied offsets in SetInRightHand for entity {entityId}");
                     }
@@ -264,134 +362,7 @@ namespace MacheteAnimRandomizer
                 }
             }
         }
-        
-        /// <summary>
-        /// Patch OnStateUpdate to continuously apply position and rotation offsets during the attack animation.
-        /// This ensures the randomization is maintained throughout the animation.
-        /// </summary>
-        [HarmonyPatch(typeof(AnimatorMeleeAttackState))]
-        [HarmonyPatch("OnStateUpdate")]
-        public class Patch_MaintainOffsetsDuringAnimation
-        {
-            static void Postfix(
-                AnimatorMeleeAttackState __instance,
-                Animator animator,
-                AnimatorStateInfo stateInfo,
-                int layerIndex,
-                ref EntityAlive ___entity)
-            {
-                try
-                {
-                    if (___entity == null)
-                        return;
 
-                    int entityId = ___entity.entityId;
-
-                    // Check if we have active randomization data for this entity
-                    if (!entityRandomData.ContainsKey(entityId))
-                        return;
-
-                    RandomizationData randData = entityRandomData[entityId];
-
-                    // Check if this is during an attack (recent randomization)
-                    float timeSinceAttack = Time.time - randData.lastAttackTime;
-                    if (timeSinceAttack > 2f) // Only apply if attack was within last 2 seconds
-                        return;
-
-                    // Continuously apply offsets to maintain them during animation
-                    AvatarController avatarController = ___entity.emodel?.avatarController;
-                    if (avatarController != null)
-                    {
-                        Transform heldTransform = avatarController.GetRightHandTransform();
-                        if (heldTransform != null && heldTransform.childCount > 0)
-                        {
-                            Transform weaponTransform = heldTransform.GetChild(0);
-                            if (weaponTransform != null && !___entity.emodel.IsFPV)
-                            {
-                                // Check if the weapon position has been reset (distance from expected)
-                                Vector3 expectedPos = randData.originalPosition + randData.positionOffset;
-                                Vector3 expectedRot = randData.originalRotation + randData.rotationOffset;
-
-                                // If position or rotation deviated significantly, reapply
-                                float positionDiff = Vector3.Distance(weaponTransform.localPosition, expectedPos);
-                                float rotationDiff = Quaternion.Angle(weaponTransform.localRotation, Quaternion.Euler(expectedRot));
-
-                                if (positionDiff > 0.01f || rotationDiff > 1f)
-                                {
-                                    weaponTransform.localPosition = expectedPos;
-                                    weaponTransform.localRotation = Quaternion.Euler(expectedRot);
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // Silently fail to avoid spam during Update
-                }
-            }
-        }
-
-        /// <summary>
-        /// Clean up randomization data when animation state exits
-        /// to prevent memory leaks and restore weapon to default position.
-        /// </summary>
-        [HarmonyPatch(typeof(AnimatorMeleeAttackState))]
-        [HarmonyPatch("OnStateExit")]
-        public class Patch_CleanupOnExit
-        {
-            static void Postfix(
-                AnimatorMeleeAttackState __instance,
-                Animator animator,
-                AnimatorStateInfo stateInfo,
-                int layerIndex,
-                ref EntityAlive ___entity)
-            {
-                try
-                {
-                    if (___entity == null)
-                        return;
-
-                    int entityId = ___entity.entityId;
-
-                    // Restore original weapon transform
-                    if (entityRandomData.ContainsKey(entityId))
-                    {
-                        RandomizationData randData = entityRandomData[entityId];
-
-                        // Restore the weapon transform to original position/rotation
-                        AvatarController avatarController = ___entity.emodel?.avatarController;
-                        if (avatarController != null)
-                        {
-                            Transform heldTransform = avatarController.GetRightHandTransform();
-                            if (heldTransform != null && heldTransform.childCount > 0)
-                            {
-                                Transform weaponTransform = heldTransform.GetChild(0);
-                                if (weaponTransform != null)
-                                {
-                                    // Restore to the original AnimationGunjointOffsetData position/rotation
-                                    if (!___entity.emodel.IsFPV || ___entity.isEntityRemote)
-                                    {
-                                        weaponTransform.localPosition = randData.originalPosition;
-                                        weaponTransform.localRotation = Quaternion.Euler(randData.originalRotation);
-
-                                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Restored weapon transform for entity {entityId}");
-                                    }
-                                }
-                            }
-                        }
-
-                        // Mark as old by setting a very old time
-                        entityRandomData[entityId].lastAttackTime = Time.time - 1000f;
-                    }
-                        }
-                        catch (Exception ex)
-                        {
-                            UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Error in cleanup: {ex.Message}");
-                        }
-                    }
-                }
-        
         /// <summary>
         /// Periodic cleanup of old entity data to prevent memory leaks
         /// </summary>
