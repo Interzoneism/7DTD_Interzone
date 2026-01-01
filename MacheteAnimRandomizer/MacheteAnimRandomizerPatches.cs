@@ -151,90 +151,29 @@ namespace MacheteAnimRandomizer
         }
 
         /// <summary>
-        /// PATCH 1: Hook the melee action start point. Some game builds renamed the entry
-        /// (StartAttack/StartAction/etc), so we resolve it dynamically and skip the patch
-        /// cleanly if nothing matches to avoid Harmony errors.
+        /// PATCH 1: Hook ItemActionDynamicMelee.ExecuteAction when attack starts (_bReleased = false).
+        /// This is called when melee attacks begin.
         /// </summary>
-        [HarmonyPatch]
-        public class Patch_StartAttack
+        [HarmonyPatch(typeof(ItemActionDynamicMelee))]
+        [HarmonyPatch("ExecuteAction")]
+        public class Patch_ExecuteAction
         {
-            private static MethodBase _targetMethod;
-
-            static bool Prepare()
-            {
-                _targetMethod = FindTargetMethod();
-                if (_targetMethod == null)
-                {
-                    if (DebugLogging)
-                        UnityEngine.Debug.LogWarning("[MacheteAnimRandomizer] No StartAttack/StartAction method found; skipping Patch_StartAttack.");
-                    return false;
-                }
-
-                return true;
-            }
-
-            static MethodBase TargetMethod()
-            {
-                return _targetMethod;
-            }
-
-            private static MethodBase FindTargetMethod()
-            {
-                var type = typeof(ItemActionDynamicMelee);
-
-                // Common signatures observed across builds
-                var signatures = new List<Type[]>
-                {
-                    new[] { typeof(ItemActionData) },
-                    new[] { typeof(ItemActionData), typeof(bool) },
-                    new[] { typeof(ItemActionData), typeof(bool), typeof(bool) }
-                };
-
-                var names = new[]
-                {
-                    "StartAttack",
-                    "StartAction",
-                    "StartActionInternal"
-                };
-
-                foreach (var name in names)
-                {
-                    foreach (var sig in signatures)
-                    {
-                        var method = AccessTools.DeclaredMethod(type, name, sig);
-                        if (method != null)
-                            return method;
-                    }
-                }
-
-                // Fallback: first void method whose first parameter is ItemActionData and name contains Start/Attack
-                return AccessTools.FirstMethod(type, m =>
-                {
-                    var parameters = m.GetParameters();
-                    return m.ReturnType == typeof(void)
-                        && parameters.Length > 0
-                        && typeof(ItemActionData).IsAssignableFrom(parameters[0].ParameterType)
-                        && (m.Name.IndexOf("Start", StringComparison.OrdinalIgnoreCase) >= 0
-                            || m.Name.IndexOf("Attack", StringComparison.OrdinalIgnoreCase) >= 0);
-                });
-            }
-
-            static void Postfix(object[] __args)
+            static void Prefix(ItemActionData _actionData, bool _bReleased)
             {
                 try
                 {
-                    var actionData = __args != null && __args.Length > 0
-                        ? __args[0] as ItemActionData
-                        : null;
+                    // Only trigger on attack start, not release
+                    if (_bReleased)
+                        return;
 
                     // Prevent multiple triggers per attack
                     if (Time.time - lastAttackTime < attackCooldown)
                         return;
 
-                    if (actionData?.invData?.holdingEntity == null)
+                    if (_actionData?.invData?.holdingEntity == null)
                         return;
 
-                    EntityAlive holdingEntity = actionData.invData.holdingEntity;
+                    EntityAlive holdingEntity = _actionData.invData.holdingEntity;
 
                     // Only affect local player
                     if (!(holdingEntity is EntityPlayerLocal localPlayer))
@@ -248,14 +187,14 @@ namespace MacheteAnimRandomizer
                     vp_FPWeapon fpWeapon = FindFPWeapon(localPlayer);
                     if (fpWeapon != null)
                     {
-                        ApplyRandomForces(fpWeapon, "StartAttack");
+                        ApplyRandomForces(fpWeapon, "ExecuteAction");
                         lastAttackTime = Time.time;
                     }
                 }
                 catch (Exception ex)
                 {
                     if (DebugLogging)
-                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] StartAttack patch error: {ex.Message}");
+                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] ExecuteAction patch error: {ex.Message}");
                 }
             }
         }
