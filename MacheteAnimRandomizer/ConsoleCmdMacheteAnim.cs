@@ -24,24 +24,26 @@ namespace MacheteAnimRandomizer
 
         public override string getDescription()
         {
-            return "Configure machete animation randomization parameters";
+            return "Configure melee animation randomization parameters";
         }
 
         public override string getHelp()
         {
             return "Configure melee animation randomization parameters.\n" +
+                   "Uses the game's spring-based weapon system to add variation to melee attacks.\n\n" +
                    "Usage:\n" +
-                   "  macheteanim speed <value>              - Set speed variation (+/- range, e.g., 0.15 = 0.85x to 1.15x speed)\n" +
+                   "  macheteanim speed <value>              - Set speed variation (+/- range, e.g., 0.12 = 0.88x to 1.12x speed)\n" +
                    "  macheteanim position <x> <y> <z>       - Set position force range (spring force per axis)\n" +
                    "  macheteanim rotation <pitch> <yaw> <roll> - Set rotation force range (degrees per axis)\n" +
-                   "  macheteanim frames <value>             - Set soft force frames (smoothing, default 15)\n" +
+                   "  macheteanim frames <value>             - Set soft force frames (smoothing, default 25)\n" +
                    "  macheteanim allmelee <true|false>      - Affect all melee weapons or just machete-type\n" +
+                   "  macheteanim debug <true|false>         - Enable/disable debug logging\n" +
                    "  macheteanim show                       - Display current settings\n" +
-                   "  macheteanim reset                      - Reset all values to defaults\n" +
+                   "  macheteanim reset                      - Reset all values to defaults\n\n" +
                    "Examples:\n" +
-                   "  macheteanim speed 0.2                  - Speed will vary from 0.8x to 1.2x\n" +
-                   "  macheteanim position 0.05 0.05 0.03    - Position force varies per axis\n" +
-                   "  macheteanim rotation 10 10 8           - Rotation force varies per axis";
+                   "  macheteanim speed 0.15                 - Speed will vary from 0.85x to 1.15x\n" +
+                   "  macheteanim position 0.15 0.08 0.12    - Position force varies per axis\n" +
+                   "  macheteanim rotation 15 12 8           - Rotation force varies per axis (degrees)";
         }
 
         public override void Execute(List<string> _params, CommandSenderInfo _senderInfo)
@@ -122,47 +124,62 @@ namespace MacheteAnimRandomizer
                             SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Error: Frames must be a positive integer");
                             return;
                         }
-                        MacheteAnimRandomizerPatches.SoftForceFrames = framesValue;
-                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Soft force frames set to {framesValue}");
-                        break;
+                                    MacheteAnimRandomizerPatches.SoftForceFrames = framesValue;
+                                    SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Soft force frames set to {framesValue}");
+                                    break;
 
-                    case "allmelee":
-                    case "all":
-                        if (_params.Count != 2)
-                        {
-                            SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Usage: macheteanim allmelee <true|false>");
-                            return;
+                                case "allmelee":
+                                case "all":
+                                    if (_params.Count != 2)
+                                    {
+                                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Usage: macheteanim allmelee <true|false>");
+                                        return;
+                                    }
+                                    if (!bool.TryParse(_params[1], out bool allMelee))
+                                    {
+                                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Error: Value must be true or false");
+                                        return;
+                                    }
+                                    MacheteAnimRandomizerPatches.AffectAllMeleeWeapons = allMelee;
+                                    SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Affect all melee weapons: {allMelee}");
+                                    break;
+
+                                case "debug":
+                                    if (_params.Count != 2)
+                                    {
+                                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Usage: macheteanim debug <true|false>");
+                                        return;
+                                    }
+                                    if (!bool.TryParse(_params[1], out bool debugMode))
+                                    {
+                                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Error: Value must be true or false");
+                                        return;
+                                    }
+                                    MacheteAnimRandomizerPatches.DebugLogging = debugMode;
+                                    SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Debug logging: {debugMode}");
+                                    break;
+
+                                case "show":
+                                case "display":
+                                case "status":
+                                    DisplayCurrentSettings();
+                                    break;
+
+                                case "reset":
+                                    ResetToDefaults();
+                                    SingletonMonoBehaviour<SdtdConsole>.Instance.Output("All machete animation parameters reset to default values");
+                                    DisplayCurrentSettings();
+                                    break;
+
+                                default:
+                                    SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Unknown parameter: {subCommand}");
+                                    SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Valid parameters: speed, position, rotation, frames, allmelee, debug, show, reset");
+                                    SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Type 'help macheteanim' for more information.");
+                                    break;
+                            }
                         }
-                        if (!bool.TryParse(_params[1], out bool allMelee))
+                        catch (Exception ex)
                         {
-                            SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Error: Value must be true or false");
-                            return;
-                        }
-                        MacheteAnimRandomizerPatches.AffectAllMeleeWeapons = allMelee;
-                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Affect all melee weapons: {allMelee}");
-                        break;
-
-                    case "show":
-                    case "display":
-                    case "status":
-                        DisplayCurrentSettings();
-                        break;
-
-                    case "reset":
-                        ResetToDefaults();
-                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output("All machete animation parameters reset to default values");
-                        DisplayCurrentSettings();
-                        break;
-
-                    default:
-                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Unknown parameter: {subCommand}");
-                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Valid parameters: speed, position, rotation, frames, allmelee, show, reset");
-                        SingletonMonoBehaviour<SdtdConsole>.Instance.Output("Type 'help macheteanim' for more information.");
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
                 SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Error executing command: {ex.Message}");
                 UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Console command error: {ex}");
             }
@@ -178,16 +195,18 @@ namespace MacheteAnimRandomizer
             SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Rotation Force: Pitch: +/- {rot.x:F1}°, Yaw: +/- {rot.y:F1}°, Roll: +/- {rot.z:F1}°");
             SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Soft Force Frames: {MacheteAnimRandomizerPatches.SoftForceFrames}");
             SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Affect All Melee: {MacheteAnimRandomizerPatches.AffectAllMeleeWeapons}");
+            SingletonMonoBehaviour<SdtdConsole>.Instance.Output($"Debug Logging: {MacheteAnimRandomizerPatches.DebugLogging}");
             SingletonMonoBehaviour<SdtdConsole>.Instance.Output("==========================================");
         }
 
         private void ResetToDefaults()
         {
-            MacheteAnimRandomizerPatches.SpeedPlusMinus = 0.15f;
-            MacheteAnimRandomizerPatches.PositionForcePlusMinus = new Vector3(0.03f, 0.03f, 0.02f);
-            MacheteAnimRandomizerPatches.RotationForcePlusMinus = new Vector3(8f, 8f, 5f);
-            MacheteAnimRandomizerPatches.SoftForceFrames = 15;
+            MacheteAnimRandomizerPatches.SpeedPlusMinus = 0.12f;
+            MacheteAnimRandomizerPatches.PositionForcePlusMinus = new Vector3(0.15f, 0.08f, 0.12f);
+            MacheteAnimRandomizerPatches.RotationForcePlusMinus = new Vector3(15f, 12f, 8f);
+            MacheteAnimRandomizerPatches.SoftForceFrames = 25;
             MacheteAnimRandomizerPatches.AffectAllMeleeWeapons = true;
+            MacheteAnimRandomizerPatches.DebugLogging = false;
         }
 
         public override int DefaultPermissionLevel

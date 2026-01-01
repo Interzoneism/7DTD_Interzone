@@ -1,96 +1,96 @@
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
-using Platform;
 
 namespace MacheteAnimRandomizer
 {
     /// <summary>
     /// Harmony patches for randomizing melee attack animations in first-person view.
     /// 
-    /// TECHNICAL EXPLANATION:
-    /// In FPV (first-person view), melee animations are baked into Unity AnimationClips
-    /// which directly control bone transforms through keyframe data. This data cannot be
-    /// modified at runtime.
+    /// TECHNICAL ANALYSIS (from decompiled 7DTD source code):
+    /// 
+    /// 1. vp_FPWeapon uses a SPRING-BASED physics system with:
+    ///    - m_PositionSpring: Controls weapon position via spring physics
+    ///    - m_RotationSpring: Controls weapon rotation via spring physics
+    ///    - AddSoftForce(Vector3 positional, Vector3 angular, int frames): Applies forces over time
+    /// 
+    /// 2. vp_FPWeaponMeleeAttack.UpdateAttack() calls:
+    ///    m_Weapon.AddSoftForce(SwingPositionSoftForce, SwingRotationSoftForce, SwingSoftForceFrames)
+    ///    Default values: SwingPositionSoftForce=(-0.5,-0.1,0.3), SwingRotationSoftForce=(50,-25,0)
+    /// 
+    /// 3. AnimatorMeleeAttackState controls animation speed via "MeleeAttackSpeed" animator parameter.
+    /// 
+    /// 4. ItemActionDynamicMelee.StartAttack() initiates attacks and can be used for detection.
     /// 
     /// SOLUTION:
-    /// The game uses a spring-based system (vp_FPWeapon) that ADDS position/rotation 
-    /// forces on top of the base weapon position. The vp_FPWeaponMeleeAttack class already
-    /// uses AddSoftForce() to create swing motion. We modify the force values that get
-    /// applied to inject randomization into the spring system.
-    /// 
-    /// For speed variation, we modify the "MeleeAttackSpeed" animator parameter which
-    /// the game already uses to control attack speed.
+    /// We hook into the spring force application to add random variation to melee swings.
+    /// This works WITH the animation system rather than fighting it.
     /// </summary>
     public class MacheteAnimRandomizerPatches
     {
         // Random number generator for animation variations
         private static System.Random random = new System.Random();
 
-        // Track last randomization per entity to prevent double-applications
-        private static Dictionary<int, AttackRandomData> entityAttackData = new Dictionary<int, AttackRandomData>();
-
-        private class AttackRandomData
-        {
-            public float lastAttackTime;
-            public Vector3 appliedPositionForce;
-            public Vector3 appliedRotationForce;
-            public float speedMultiplier;
-        }
+        // Track when attacks start to prevent multiple randomizations per attack
+        private static float lastAttackTime = 0f;
+        private static float attackCooldown = 0.15f; // Minimum time between randomizations
 
         // --------------------------
-        // Configurable ranges (easy to change)
+        // Configurable ranges
         // --------------------------
 
         /// <summary>
-        /// Speed +/- range. Example 0.15 => speed will be sampled from [1 - 0.15, 1 + 0.15] (i.e. 0.85..1.15).
+        /// Speed +/- range. Example 0.15 => speed will be 0.85x to 1.15x.
         /// </summary>
-        public static float SpeedPlusMinus = 0.02f;
+        public static float SpeedPlusMinus = 0.12f;
 
         /// <summary>
         /// Position soft force per-axis maximum (applied to spring system).
-        /// These values add to the weapon's position through the spring system.
-        /// Reasonable defaults for visible but not extreme variation.
+        /// These add to the weapon's position through the spring physics.
+        /// Values based on game's default SwingPositionSoftForce of (-0.5,-0.1,0.3).
         /// </summary>
-        public static Vector3 PositionForcePlusMinus = new Vector3(0.09f, 0.13f, 0.08f);
+        public static Vector3 PositionForcePlusMinus = new Vector3(0.15f, 0.08f, 0.12f);
 
         /// <summary>
         /// Rotation soft force per-axis maximum (degrees, applied to spring system).
-        /// These values add angular force through the spring system.
+        /// Values based on game's default SwingRotationSoftForce of (50,-25,0).
         /// </summary>
-        public static Vector3 RotationForcePlusMinus = new Vector3(34f, 80f, 52f);
+        public static Vector3 RotationForcePlusMinus = new Vector3(15f, 12f, 8f);
 
         /// <summary>
-        /// Number of frames over which to apply the soft force (smoothing).
-        /// Higher = smoother but slower effect. Lower = more immediate.
+        /// Number of frames over which to apply the soft force.
+        /// Game default is 50 frames. Lower = snappier, Higher = smoother.
         /// </summary>
-        public static int SoftForceFrames = 3;
+        public static int SoftForceFrames = 25;
 
         /// <summary>
         /// Whether to affect all melee weapons (true) or only machete-type (false).
         /// </summary>
         public static bool AffectAllMeleeWeapons = true;
 
+        /// <summary>
+        /// Enable debug logging.
+        /// </summary>
+        public static bool DebugLogging = false;
+
         // --------------------------
-        // Helper: sample symmetric range
+        // Helper methods
         // --------------------------
+
         private static float SampleSymmetric(float halfRange)
         {
-            // returns value in [-halfRange, +halfRange]
             return (float)((random.NextDouble() * 2.0 - 1.0) * halfRange);
         }
 
         /// <summary>
         /// Check if the held item is a melee weapon we want to randomize.
         /// </summary>
-        private static bool IsMeleeWeaponToRandomize(ItemClass holdingItem)
+        public static bool IsMeleeWeaponToRandomize(ItemClass holdingItem)
         {
             if (holdingItem == null) return false;
 
-            string itemName = holdingItem.GetItemName().ToLower();
-
-            // If affecting all melee, check for melee action
             if (AffectAllMeleeWeapons)
             {
                 // Check if any action is a melee action
@@ -105,45 +105,122 @@ namespace MacheteAnimRandomizer
                 return false;
             }
 
-            // Otherwise just check for machete/blade types
-            bool isMachete = itemName.Contains("machete");
-            if (!isMachete && holdingItem.HasAnyTags(FastTags<TagGroup.Global>.Parse("blade,knife,sword")))
+            // Otherwise check for machete/blade types by name/tags
+            string itemName = holdingItem.GetItemName().ToLower();
+            if (itemName.Contains("machete") || itemName.Contains("blade") || 
+                itemName.Contains("knife") || itemName.Contains("sword"))
             {
-                isMachete = itemName.Contains("blade") || itemName.Contains("knife") || itemName.Contains("sword");
+                return true;
             }
-            return isMachete;
+
+            if (holdingItem.HasAnyTags(FastTags<TagGroup.Global>.Parse("blade,knife,sword,machete")))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
-        /// PRIMARY PATCH: Hook into vp_FPWeapon.AddSoftForce to modify the forces being applied.
-        /// This intercepts the existing swing forces and adds random variation to them.
+        /// Generate and apply random forces to a vp_FPWeapon's spring system.
         /// </summary>
-        [HarmonyPatch(typeof(vp_FPWeapon))]
-        [HarmonyPatch("AddSoftForce")]
-        public class Patch_FPVMeleeRandomForce
+        private static void ApplyRandomForces(vp_FPWeapon weapon, string context)
         {
-            /// <summary>
-            /// Prefix runs before AddSoftForce. We modify the force parameters before they're applied.
-            /// </summary>
-            static void Prefix(ref Vector3 _force, ref Vector3 _angularForce)
+            if (weapon == null) return;
+
+            Vector3 randomPosForce = new Vector3(
+                SampleSymmetric(PositionForcePlusMinus.x),
+                SampleSymmetric(PositionForcePlusMinus.y),
+                SampleSymmetric(PositionForcePlusMinus.z)
+            );
+
+            Vector3 randomRotForce = new Vector3(
+                SampleSymmetric(RotationForcePlusMinus.x),
+                SampleSymmetric(RotationForcePlusMinus.y),
+                SampleSymmetric(RotationForcePlusMinus.z)
+            );
+
+            // Apply via the spring system
+            weapon.AddSoftForce(randomPosForce, randomRotForce, SoftForceFrames);
+
+            if (DebugLogging)
+            {
+                UnityEngine.Debug.Log($"[MacheteAnimRandomizer] {context} - Applied random forces: " +
+                    $"Pos={randomPosForce}, Rot={randomRotForce}");
+            }
+        }
+
+        /// <summary>
+        /// PATCH 1: Hook ItemActionDynamicMelee.StartAttack to detect when a melee attack starts.
+        /// This is the most reliable point to inject randomization.
+        /// </summary>
+        [HarmonyPatch(typeof(ItemActionDynamicMelee))]
+        [HarmonyPatch("StartAttack")]
+        public class Patch_StartAttack
+        {
+            static void Postfix(ItemActionData _actionData)
             {
                 try
                 {
-                    // Get local player and check weapon type
-                    var localPlayer = GameManager.Instance?.World?.GetPrimaryPlayer();
-                    if (localPlayer == null || localPlayer.inventory?.holdingItem == null)
-                    {
+                    // Prevent multiple triggers per attack
+                    if (Time.time - lastAttackTime < attackCooldown)
                         return;
+
+                    if (_actionData?.invData?.holdingEntity == null)
+                        return;
+
+                    EntityAlive holdingEntity = _actionData.invData.holdingEntity;
+
+                    // Only affect local player
+                    if (!(holdingEntity is EntityPlayerLocal localPlayer))
+                        return;
+
+                    ItemClass holdingItem = holdingEntity.inventory?.holdingItem;
+                    if (holdingItem == null || !IsMeleeWeaponToRandomize(holdingItem))
+                        return;
+
+                    // Find the vp_FPWeapon component
+                    vp_FPWeapon fpWeapon = FindFPWeapon(localPlayer);
+                    if (fpWeapon != null)
+                    {
+                        ApplyRandomForces(fpWeapon, "StartAttack");
+                        lastAttackTime = Time.time;
                     }
+                }
+                catch (Exception ex)
+                {
+                    if (DebugLogging)
+                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] StartAttack patch error: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// PATCH 2: Hook the 3-parameter AddSoftForce overload (Vector3, Vector3, int).
+        /// This is called by vp_FPWeaponMeleeAttack during swing animations.
+        /// We modify the parameters to add random variation.
+        /// </summary>
+        [HarmonyPatch(typeof(vp_FPWeapon))]
+        [HarmonyPatch("AddSoftForce", new Type[] { typeof(Vector3), typeof(Vector3), typeof(int) })]
+        public class Patch_AddSoftForce
+        {
+            static void Prefix(ref Vector3 positional, ref Vector3 angular, ref int frames)
+            {
+                try
+                {
+                    // Only modify if this looks like a melee swing (has significant rotation force)
+                    if (angular.magnitude < 5f)
+                        return;
+
+                    var localPlayer = GameManager.Instance?.World?.GetPrimaryPlayer();
+                    if (localPlayer?.inventory?.holdingItem == null)
+                        return;
 
                     ItemClass holdingItem = localPlayer.inventory.holdingItem;
-
                     if (!IsMeleeWeaponToRandomize(holdingItem))
-                    {
                         return;
-                    }
 
-                    // Generate random force variations
+                    // Add random variation to the forces
                     Vector3 randomPosForce = new Vector3(
                         SampleSymmetric(PositionForcePlusMinus.x),
                         SampleSymmetric(PositionForcePlusMinus.y),
@@ -156,24 +233,25 @@ namespace MacheteAnimRandomizer
                         SampleSymmetric(RotationForcePlusMinus.z)
                     );
 
-                    // Add our random forces to the existing forces
-                    _force += randomPosForce;
-                    _angularForce += randomRotForce;
+                    positional += randomPosForce;
+                    angular += randomRotForce;
 
-                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Modified force for {holdingItem.GetItemName()}. " +
-                        $"Pos delta: {randomPosForce}, Rot delta: {randomRotForce}");
+                    if (DebugLogging)
+                    {
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] AddSoftForce modified: " +
+                            $"+Pos={randomPosForce}, +Rot={randomRotForce}");
+                    }
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    UnityEngine.Debug.LogError($"[MacheteAnimRandomizer] Error in Prefix patch: {e}");
+                    if (DebugLogging)
+                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] AddSoftForce patch error: {ex.Message}");
                 }
             }
         }
 
         /// <summary>
-        /// SECONDARY PATCH: Randomize animation speed through the animator system.
-        /// This patch modifies the MeleeAttackSpeed animator parameter which controls
-        /// how fast the attack animation plays.
+        /// PATCH 3: Randomize animation speed via AnimatorMeleeAttackState.
         /// </summary>
         [HarmonyPatch(typeof(AnimatorMeleeAttackState))]
         [HarmonyPatch("OnStateEnter")]
@@ -181,66 +259,80 @@ namespace MacheteAnimRandomizer
         {
             static void Postfix(
                 Animator animator,
-                ref float ___originalMeleeAttackSpeed,
-                ref EntityAlive ___entity,
-                ref int ___actionIndex)
+                AnimatorStateInfo stateInfo,
+                int layerIndex,
+                float ___originalMeleeAttackSpeed,
+                EntityAlive ___entity,
+                int ___actionIndex)
             {
                 try
                 {
                     if (___entity == null || ___entity.inventory?.holdingItem == null)
                         return;
 
-                    ItemClass holdingItem = ___entity.inventory.holdingItem;
-
-                    if (!IsMeleeWeaponToRandomize(holdingItem))
+                    // Only affect local player
+                    if (!(___entity is EntityPlayerLocal))
                         return;
 
-                    // Only randomize primary attacks (index 0)
-                    if (___actionIndex != 0)
+                    ItemClass holdingItem = ___entity.inventory.holdingItem;
+                    if (!IsMeleeWeaponToRandomize(holdingItem))
                         return;
 
                     // Generate random speed multiplier
                     float speedMultiplier = 1f + SampleSymmetric(SpeedPlusMinus);
-
-                    // Clamp to reasonable range
                     speedMultiplier = Mathf.Clamp(speedMultiplier, 0.7f, 1.3f);
 
-                    // Apply to animator
                     float randomizedSpeed = ___originalMeleeAttackSpeed * speedMultiplier;
                     animator.SetFloat("MeleeAttackSpeed", randomizedSpeed);
 
-                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Speed: {speedMultiplier:F2}x " +
-                        $"(from {___originalMeleeAttackSpeed:F2} to {randomizedSpeed:F2})");
+                    if (DebugLogging)
+                    {
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Speed: {speedMultiplier:F2}x " +
+                            $"(base={___originalMeleeAttackSpeed:F2}, new={randomizedSpeed:F2})");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Speed patch error: {ex.Message}");
+                    if (DebugLogging)
+                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Speed patch error: {ex.Message}");
                 }
             }
         }
 
         /// <summary>
-        /// Periodic cleanup of old entity data to prevent memory leaks.
-        /// Called periodically from game update.
+        /// Find the vp_FPWeapon component for a player entity.
         /// </summary>
-        public static void CleanupOldData()
+        private static vp_FPWeapon FindFPWeapon(EntityPlayerLocal player)
         {
-            float currentTime = Time.time;
-            List<int> toRemove = new List<int>();
+            if (player == null) return null;
 
-            foreach (var kvp in entityAttackData)
+            try
             {
-                // Remove data older than 10 seconds
-                if (currentTime - kvp.Value.lastAttackTime > 10f)
+                // Try to get from player's camera/weapon hierarchy
+                var playerCamera = player.playerCamera;
+                if (playerCamera != null)
                 {
-                    toRemove.Add(kvp.Key);
+                    var fpWeapon = playerCamera.GetComponentInChildren<vp_FPWeapon>();
+                    if (fpWeapon != null)
+                        return fpWeapon;
+                }
+
+                // Fallback: search in active weapon transforms
+                var vp = player.vp_FPController;
+                if (vp != null)
+                {
+                    var fpWeapon = vp.GetComponentInChildren<vp_FPWeapon>();
+                    if (fpWeapon != null)
+                        return fpWeapon;
                 }
             }
-
-            foreach (int id in toRemove)
+            catch (Exception ex)
             {
-                entityAttackData.Remove(id);
+                if (DebugLogging)
+                    UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] FindFPWeapon error: {ex.Message}");
             }
+
+            return null;
         }
     }
 }

@@ -1,59 +1,83 @@
 # Melee Animation Randomizer - Technical Solution
 
-## Problem
-Previous attempts to randomize melee attack animations in first-person view (FPV) did NOT work because:
+## Deep Dive Analysis of Decompiled Source Code
 
-1. **AnimationGunjointOffsetData is TPV-only**: In FPV, weapons are positioned at `Vector3.zero` and animated bones control movement
-2. **Direct transform modification fails**: The animator overwrites transform changes every frame
-3. **Animation clips are read-only**: Unity AnimationClips contain baked keyframe data that cannot be modified at runtime
+After analyzing the decompiled 7DTD source code, here's how melee animations work:
+
+### Key Classes Identified
+
+1. **`vp_FPWeapon`** - First-person weapon controller with spring physics
+   - `m_PositionSpring` / `m_RotationSpring` - Spring physics for smooth weapon movement
+   - `AddSoftForce(Vector3 positional, Vector3 angular, int frames)` - Applies forces over time
+   - Springs have `RestState`, `Stiffness`, `Damping` properties
+
+2. **`vp_FPWeaponMeleeAttack`** - Melee attack handler
+   - Calls `m_Weapon.AddSoftForce(SwingPositionSoftForce, SwingRotationSoftForce, SwingSoftForceFrames)`
+   - Default values: `SwingPositionSoftForce=(-0.5,-0.1,0.3)`, `SwingRotationSoftForce=(50,-25,0)`
+   - `SwingSoftForceFrames=50` for smooth application
+
+3. **`vp_Spring`** - Physics spring implementation
+   - `AddSoftForce(Vector3 force, float frames)` - Distributes force over multiple frames
+   - Updates in `FixedUpdate()` calculating velocity and position
+
+4. **`AnimatorMeleeAttackState`** - Animator state machine behavior
+   - Controls `MeleeAttackSpeed` animator parameter
+   - Calculates attack timing based on `AttacksPerMinute` passive effect
+
+5. **`ItemActionDynamicMelee`** - Modern melee action system
+   - `StartAttack()` initiates attacks, triggers animations
+   - Works with animator state machine
+
+## Why Previous Approaches Failed
+
+1. **AnimationGunjointOffsetData** - TPV-only, FPV weapons use Vector3.zero
+2. **Direct transform modification** - Animator overwrites every frame
+3. **Animation clips** - Read-only baked keyframe data
 
 ## Solution: Spring System Force Injection
 
-The game uses `vp_FPWeapon` with a **spring-based physics system** that ADDS forces on top of the base position. The `vp_FPWeaponMeleeAttack.UpdateAttack()` method already calls `AddSoftForce()` for swing motion:
+The spring system is **additive** - forces ADD to the base position rather than replacing it. This means we can inject random forces that work WITH the animation.
 
-```csharp
-m_Weapon.AddSoftForce(this.SwingPositionSoftForce, this.SwingRotationSoftForce, this.SwingSoftForceFrames);
-```
+### Implementation Strategy
 
-We inject **additional random forces** into this spring system when an attack starts, creating procedural variation that works WITH the animator instead of fighting it.
+**Patch 1: `ItemActionDynamicMelee.StartAttack` (Postfix)**
+- Most reliable detection point for melee attack initiation
+- Apply additional random forces via `vp_FPWeapon.AddSoftForce()`
 
-## Implementation
+**Patch 2: `vp_FPWeapon.AddSoftForce(Vector3, Vector3, int)` (Prefix)**
+- Intercepts existing swing forces from `vp_FPWeaponMeleeAttack`
+- Modifies force parameters to add random variation
+- Only affects melee weapons (checks for significant rotation force)
 
-### Patch 1: `Patch_FPVMeleeRandomForce`
-- **Target**: `vp_FPWeapon.AddSoftForce` (Prefix)
-- **Detects melee swings**: Checks if rotation force magnitude > 0.1 (melee swings have significant rotation)
-- **Modifies forces**: Adds random position/rotation forces to the parameters before they reach the spring system
-- **Cooldown**: 0.1s between triggers to prevent double-randomization per swing
+**Patch 3: `AnimatorMeleeAttackState.OnStateEnter` (Postfix)**
+- Randomizes `MeleeAttackSpeed` animator parameter
+- Creates speed variation in attack animations
 
-### Patch 2: `Patch_RandomizeMeleeSpeed`
-- **Target**: `AnimatorMeleeAttackState.OnStateEnter`
-- **Modifies**: `MeleeAttackSpeed` animator parameter for speed variation
+## Configuration Defaults (Based on Game Values)
 
-## Configuration
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `SpeedPlusMinus` | 0.15 | Speed variation range (0.85x to 1.15x) |
-| `PositionForcePlusMinus` | (0.03, 0.03, 0.02) | Position force per axis |
-| `RotationForcePlusMinus` | (8, 8, 5) | Rotation force per axis (degrees) |
-| `SoftForceFrames` | 15 | Smoothing frames |
-| `AffectAllMeleeWeapons` | true | Affect all melee or just machete-type |
+| Parameter | Default | Rationale |
+|-----------|---------|-----------|
+| `SpeedPlusMinus` | 0.12 | ~12% variation feels natural |
+| `PositionForcePlusMinus` | (0.15, 0.08, 0.12) | Based on game's (-0.5,-0.1,0.3) |
+| `RotationForcePlusMinus` | (15, 12, 8) | Based on game's (50,-25,0) |
+| `SoftForceFrames` | 25 | Half game's 50 for faster response |
 
 ## Console Commands
 
 ```
-macheteanim speed <value>           - Set speed variation
-macheteanim position <x> <y> <z>    - Set position force
-macheteanim rotation <p> <y> <r>    - Set rotation force  
+macheteanim speed <value>           - Set speed variation (+/- range)
+macheteanim position <x> <y> <z>    - Set position force per axis
+macheteanim rotation <p> <y> <r>    - Set rotation force per axis (degrees)
 macheteanim frames <value>          - Set soft force frames
 macheteanim allmelee <true|false>   - Toggle all melee weapons
+macheteanim debug <true|false>      - Toggle debug logging
 macheteanim show                    - Display current settings
 macheteanim reset                   - Reset to defaults
 ```
 
 ## Why This Works
 
-1. **Spring system is additive**: Forces ADD to the base position, not overwrite it
-2. **Works with animator**: The spring applies forces that complement the animation
-3. **Smooth motion**: `AddSoftForce` applies force over multiple frames for natural movement
-4. **Same technique as game**: This is how the game creates swing motion; we just add randomness
+1. **Spring system is additive** - Forces ADD to animation, don't overwrite
+2. **Same technique as game** - `vp_FPWeaponMeleeAttack` uses identical approach
+3. **Smooth motion** - `AddSoftForce` distributes force over multiple frames
+4. **Works with animator** - Complements rather than fights animation system
