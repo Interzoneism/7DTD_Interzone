@@ -24,6 +24,9 @@ namespace MacheteAnimRandomizer
             public Vector3 positionOffset;
             public Vector3 rotationOffset;
             public float lastAttackTime;
+            public int holdType; // Store the weapon hold type
+            public Vector3 originalPosition; // Store original position
+            public Vector3 originalRotation; // Store original rotation
         }
 
         // --------------------------
@@ -111,41 +114,59 @@ namespace MacheteAnimRandomizer
                     
                     int entityId = ___entity.entityId;
                     float currentTime = Time.time;
-                    
+
+                    // Get the weapon hold type
+                    int holdType = holdingItem.HoldType.Value;
+
+                    // Store original weapon offset data before modifying
+                    Vector3 originalPos = AnimationGunjointOffsetData.AnimationGunjointOffset[holdType].position;
+                    Vector3 originalRot = AnimationGunjointOffsetData.AnimationGunjointOffset[holdType].rotation;
+
                     // Generate new random values for this attack using configurable ranges
                     RandomizationData randData = new RandomizationData
                     {
                         // Speed: sample around 1.0 using SpeedPlusMinus
                         speedMultiplier = 1f + SampleSymmetric(SpeedPlusMinus),
-                        
+
                         // Position offset: sample per-axis from configured symmetric ranges
                         positionOffset = new Vector3(
                             SampleSymmetric(PositionPlusMinus.x),
                             SampleSymmetric(PositionPlusMinus.y),
                             SampleSymmetric(PositionPlusMinus.z)
                         ),
-                        
+
                         // Rotation offset: sample per-axis from configured symmetric ranges (degrees)
                         rotationOffset = new Vector3(
                             SampleSymmetric(RotationPlusMinus.x),
                             SampleSymmetric(RotationPlusMinus.y),
                             SampleSymmetric(RotationPlusMinus.z)
                         ),
-                        
-                        lastAttackTime = currentTime
+
+                        lastAttackTime = currentTime,
+                        holdType = holdType,
+                        originalPosition = originalPos,
+                        originalRotation = originalRot
                     };
                     
                     entityRandomData[entityId] = randData;
-                    
-                        // Apply randomized speed
-                        float randomizedSpeed = ___originalMeleeAttackSpeed * randData.speedMultiplier;
-                        animator.SetFloat("MeleeAttackSpeed", randomizedSpeed);
 
-                        // Log the randomization for debugging (can be disabled in production)
-                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Randomized {itemName} attack for entity {entityId}:");
-                        UnityEngine.Debug.Log($"  Speed: {randData.speedMultiplier:F2}x (from {___originalMeleeAttackSpeed:F2} to {randomizedSpeed:F2})");
-                        UnityEngine.Debug.Log($"  Position offset: {randData.positionOffset}");
-                        UnityEngine.Debug.Log($"  Rotation offset: {randData.rotationOffset}");
+                    // Apply randomized speed
+                    float randomizedSpeed = ___originalMeleeAttackSpeed * randData.speedMultiplier;
+                    animator.SetFloat("MeleeAttackSpeed", randomizedSpeed);
+
+                    // Apply position and rotation offsets to the AnimationGunjointOffsetData
+                    // This is the correct way to modify weapon positioning in 7DTD
+                    Vector3 newPosition = originalPos + randData.positionOffset;
+                    Vector3 newRotation = originalRot + randData.rotationOffset;
+
+                    AnimationGunjointOffsetData.AnimationGunjointOffset[holdType] = 
+                        new AnimationGunjointOffsetData.AnimationGunjointOffsets(newPosition, newRotation);
+
+                    // Log the randomization for debugging (can be disabled in production)
+                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Randomized {itemName} attack for entity {entityId}:");
+                    UnityEngine.Debug.Log($"  Speed: {randData.speedMultiplier:F2}x (from {___originalMeleeAttackSpeed:F2} to {randomizedSpeed:F2})");
+                    UnityEngine.Debug.Log($"  Position: {originalPos} -> {newPosition} (offset: {randData.positionOffset})");
+                    UnityEngine.Debug.Log($"  Rotation: {originalRot} -> {newRotation} (offset: {randData.rotationOffset})");
                     }
                     catch (Exception ex)
                     {
@@ -155,8 +176,8 @@ namespace MacheteAnimRandomizer
         }
         
         /// <summary>
-        /// Patch to apply weapon position and rotation offsets during the animation.
-        /// This modifies the weapon's transform in the player's hands.
+        /// Track original AnimationGunjointOffsetData values to ensure we can restore them properly.
+        /// This is called when the game initializes the weapon offset system.
         /// </summary>
         [HarmonyPatch(typeof(AnimationGunjointOffsetData))]
         [HarmonyPatch("InitStatic")]
@@ -178,62 +199,49 @@ namespace MacheteAnimRandomizer
         }
         
         /// <summary>
-        /// Alternative approach: Patch the update loop to continuously apply transform changes
-        /// during the attack animation. This provides more dynamic visual variation.
+        /// Patch SetInRightHand to re-apply our offsets when the weapon transform is updated.
+        /// This ensures our randomization persists even if the game re-sets the weapon.
         /// </summary>
-        [HarmonyPatch(typeof(AnimatorMeleeAttackState))]
-        [HarmonyPatch("OnStateUpdate")]
-        public class Patch_ApplyTransformDuringAnimation
+        [HarmonyPatch(typeof(AvatarMultiBodyController))]
+        [HarmonyPatch("SetInRightHand")]
+        public class Patch_SetInRightHand
         {
             static void Postfix(
-                AnimatorMeleeAttackState __instance,
-                Animator animator,
-                AnimatorStateInfo stateInfo,
-                int layerIndex,
-                ref EntityAlive ___entity)
+                AvatarMultiBodyController __instance,
+                Transform _transform,
+                ref Transform ___heldItemTransform)
             {
                 try
                 {
-                    if (___entity == null)
+                    if (__instance?.entity == null || _transform == null)
                         return;
-                    
-                    int entityId = ___entity.entityId;
-                    
-                    // Check if we have randomization data for this entity
+
+                    int entityId = __instance.entity.entityId;
+
+                    // Check if we have active randomization data for this entity
                     if (!entityRandomData.ContainsKey(entityId))
                         return;
-                    
-                    RandomizationData randData = entityRandomData[entityId];
-                    
-                    // Get the weapon transform if available
-                    Transform weaponTransform = ___entity.emodel?.GetRightHandTransform();
 
-                    if (weaponTransform != null)
-                    {
-                        // Apply position offset (additive to existing position) using configured apply factor
-                        Vector3 baseLocalPos = weaponTransform.localPosition;
-                        weaponTransform.localPosition = baseLocalPos + randData.positionOffset * WeaponPositionApplyFactor;
-                        
-                        // Apply rotation offset (additive to existing rotation)
-                        Quaternion baseLocalRot = weaponTransform.localRotation;
-                        Quaternion offsetRot = Quaternion.Euler(randData.rotationOffset);
-                        weaponTransform.localRotation = baseLocalRot * offsetRot;
-                    }
+                    RandomizationData randData = entityRandomData[entityId];
+
+                    // Check if this is during an attack (recent randomization)
+                    float timeSinceAttack = Time.time - randData.lastAttackTime;
+                    if (timeSinceAttack > 2f) // Only apply if attack was within last 2 seconds
+                        return;
+
+                    // Re-apply our randomized offsets to the AnimationGunjointOffsetData
+                    // This ensures the offsets persist even if SetInRightHand is called during the attack
+                    Vector3 newPosition = randData.originalPosition + randData.positionOffset;
+                    Vector3 newRotation = randData.originalRotation + randData.rotationOffset;
+
+                    AnimationGunjointOffsetData.AnimationGunjointOffset[randData.holdType] = 
+                        new AnimationGunjointOffsetData.AnimationGunjointOffsets(newPosition, newRotation);
                 }
                 catch (Exception ex)
                 {
-                    // Silently fail in update loop to avoid spam
-                    // Only log once per entity
-                    if (!loggedErrors.Contains(___entity?.entityId ?? -1))
-                    {
-                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Error applying transform: {ex.Message}");
-                        if (___entity != null)
-                            loggedErrors.Add(___entity.entityId);
-                    }
+                    // Silently fail to avoid spam
                 }
             }
-            
-            private static HashSet<int> loggedErrors = new HashSet<int>();
         }
         
         /// <summary>
@@ -257,23 +265,20 @@ namespace MacheteAnimRandomizer
                         return;
                     
                     int entityId = ___entity.entityId;
-                    
-                    // Reset weapon transform to original state
+
+                    // Restore original weapon offset data
                     if (entityRandomData.ContainsKey(entityId))
                     {
-                        Transform weaponTransform = ___entity.emodel?.GetRightHandTransform();
+                        RandomizationData randData = entityRandomData[entityId];
 
-                        if (weaponTransform != null)
-                        {
-                            // Reset position by removing our offset (use same factor as when applied)
-                            Vector3 currentPos = weaponTransform.localPosition;
-                            weaponTransform.localPosition = currentPos - entityRandomData[entityId].positionOffset * WeaponPositionApplyFactor;
-                            
-                            // Reset rotation by removing our offset
-                            Quaternion offsetRot = Quaternion.Euler(entityRandomData[entityId].rotationOffset);
-                            weaponTransform.localRotation = weaponTransform.localRotation * Quaternion.Inverse(offsetRot);
-                        }
-                        
+                        // Restore the original AnimationGunjointOffsetData values
+                        AnimationGunjointOffsetData.AnimationGunjointOffset[randData.holdType] = 
+                            new AnimationGunjointOffsetData.AnimationGunjointOffsets(
+                                randData.originalPosition, 
+                                randData.originalRotation);
+
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Restored original offsets for entity {entityId}");
+
                         // Don't remove the data immediately - keep it for potential debugging
                         // Just mark it as old by setting a very old time
                         entityRandomData[entityId].lastAttackTime = Time.time - 1000f;

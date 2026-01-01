@@ -37,13 +37,13 @@ macheteanim rotation <pitch> <yaw> <roll>
 - Example: `macheteanim rotation 20 15 30` ? rotation varies ±20° pitch, ±15° yaw, ±30° roll
 - Default: `15 10 20`
 
-#### Set Apply Factor
+#### Set Apply Factor *(Legacy - No Longer Used)*
 ```
 macheteanim applyfactor <value>
 ```
-- Sets the weapon position apply factor (multiplier for position offset)
-- Example: `macheteanim applyfactor 0.5` ? doubles the visual effect of position offsets
-- Default: `0.3`
+- **Note:** This parameter is no longer used in the current implementation
+- The position and rotation offsets are now applied directly to the game's weapon offset system
+- This command remains for backwards compatibility but has no effect
 
 #### Reset to Defaults
 ```
