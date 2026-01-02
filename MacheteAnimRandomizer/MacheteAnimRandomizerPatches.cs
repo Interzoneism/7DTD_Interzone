@@ -49,7 +49,7 @@ namespace MacheteAnimRandomizer
         /// <summary>
         /// Speed +/- range. Example 0.15 => speed will be 0.85x to 1.15x.
         /// </summary>
-        public static float SpeedPlusMinus = 0.12f;
+        public static float SpeedPlusMinus = 0.05f;
 
         /// <summary>
         /// Position soft force per-axis maximum (applied to spring system).
@@ -62,13 +62,13 @@ namespace MacheteAnimRandomizer
         /// Rotation soft force per-axis maximum (degrees, applied to spring system).
         /// Values based on game's default SwingRotationSoftForce of (50,-25,0).
         /// </summary>
-        public static Vector3 RotationForcePlusMinus = new Vector3(15f, 12f, 8f);
+        public static Vector3 RotationForcePlusMinus = new Vector3(10f, 0f, 5f);
 
         /// <summary>
         /// Number of frames over which to apply the soft force.
         /// Game default is 50 frames. Lower = snappier, Higher = smoother.
         /// </summary>
-        public static int SoftForceFrames = 25;
+        public static int SoftForceFrames = 20;
 
         /// <summary>
         /// Whether to affect all melee weapons (true) or only machete-type (false).
@@ -108,7 +108,7 @@ namespace MacheteAnimRandomizer
         /// <summary>
         /// Enable adaptive combo timing - faster follow-up attacks.
         /// </summary>
-        public static bool EnableComboTiming = true;
+        public static bool EnableComboTiming = false;
 
         /// <summary>
         /// Speed boost per combo hit (stacks up to max combo).
@@ -139,7 +139,7 @@ namespace MacheteAnimRandomizer
         /// <summary>
         /// Windup speed variation range (+/- percentage).
         /// </summary>
-        public static float WindupVariation = 0.08f;
+        public static float WindupVariation = 0.04f;
 
         // --------------------------
         // Helper methods
