@@ -591,7 +591,9 @@ namespace MacheteAnimRandomizer
                         return;
 
                     // Find the attacker
-                    EntityAlive attacker = _damageSource.getAttackerEntity();
+                    EntityAlive attacker = _damageSource.ownerEntityId != Entity.EntityIdInvalid
+                        ? GameManager.Instance.World.GetEntity(_damageSource.ownerEntityId) as EntityAlive
+                        : null;
                     if (attacker == null || !(attacker is EntityPlayerLocal localPlayer))
                         return;
 
