@@ -7,7 +7,7 @@ Animation mods and modding resources for 7 Days to Die v2.4+
 ### Mods
 
 #### 🔪 Machete Animation Randomizer
-A Harmony-based mod that randomizes machete melee attack animations in real-time.
+A Harmony-based mod that randomizes machete melee attack animations in real-time with advanced combat feel enhancements.
 
 **Features:**
 - Dynamic animation speed variation (0.8x - 1.5x)
@@ -16,8 +16,16 @@ A Harmony-based mod that randomizes machete melee attack animations in real-time
 - Each attack feels unique and unpredictable
 - Only affects normal attacks (not power attacks)
 
+**Combat Feel Enhancements:**
+- 🎯 **Camera Shake on Impact** - Visceral feedback when hits connect
+- ⚖️ **Weapon Momentum System** - Weapons feel weighty with realistic inertia
+- 🔥 **Adaptive Combo Timing** - Faster follow-up attacks reward aggressive play
+- 💥 **Enhanced Hit Feedback** - Headshots and critical hits feel extra satisfying
+- ⏱️ **Windup Variation** - Unpredictable attack timing prevents mechanical feel
+
 **Location:** `MacheteAnimRandomizer/`
 **Status:** ✅ Complete and ready to use
+**Documentation:** See `COMBAT_FEEL_ENHANCEMENTS.md` for detailed design rationale
 
 
 ### Resources
