@@ -36,6 +36,11 @@ namespace MacheteAnimRandomizer
         // Track when attacks start to prevent multiple randomizations per attack
         private static float lastAttackTime = 0f;
         private static float attackCooldown = 0.15f; // Minimum time between randomizations
+        
+        // Track combo state for adaptive timing
+        private static int comboCounter = 0;
+        private static float lastComboResetTime = 0f;
+        private static float comboResetWindow = 1.5f; // Time window to maintain combo
 
         // --------------------------
         // Configurable ranges
@@ -76,12 +81,180 @@ namespace MacheteAnimRandomizer
         public static bool DebugLogging = false;
 
         // --------------------------
+        // Enhanced Combat Feel Parameters
+        // --------------------------
+
+        /// <summary>
+        /// Enable camera shake on successful hits for visceral feedback.
+        /// </summary>
+        public static bool EnableCameraShake = true;
+
+        /// <summary>
+        /// Intensity of camera shake on hit (0 = disabled).
+        /// </summary>
+        public static float CameraShakeIntensity = 0.08f;
+
+        /// <summary>
+        /// Enable weapon trail/momentum system for weight feel.
+        /// Weapons continue moving slightly after swing, then settle.
+        /// </summary>
+        public static bool EnableWeaponMomentum = true;
+
+        /// <summary>
+        /// Momentum force magnitude (how much the weapon continues moving).
+        /// </summary>
+        public static float MomentumForceMagnitude = 0.15f;
+
+        /// <summary>
+        /// Enable adaptive combo timing - faster follow-up attacks.
+        /// </summary>
+        public static bool EnableComboTiming = true;
+
+        /// <summary>
+        /// Speed boost per combo hit (stacks up to max combo).
+        /// Example: 0.05 = 5% faster per hit in combo.
+        /// </summary>
+        public static float ComboSpeedBoost = 0.06f;
+
+        /// <summary>
+        /// Maximum combo count for speed boost.
+        /// </summary>
+        public static int MaxComboCount = 4;
+
+        /// <summary>
+        /// Enable enhanced hit feedback (different feel for crits/headshots/kills).
+        /// </summary>
+        public static bool EnableHitFeedback = true;
+
+        /// <summary>
+        /// Additional camera shake multiplier for critical hits.
+        /// </summary>
+        public static float CriticalHitShakeMultiplier = 1.8f;
+
+        /// <summary>
+        /// Enable anticipation variation - slight windup delays/speedups.
+        /// </summary>
+        public static bool EnableWindupVariation = true;
+
+        /// <summary>
+        /// Windup speed variation range (+/- percentage).
+        /// </summary>
+        public static float WindupVariation = 0.08f;
+
+        // --------------------------
         // Helper methods
         // --------------------------
 
         private static float SampleSymmetric(float halfRange)
         {
             return (float)((random.NextDouble() * 2.0 - 1.0) * halfRange);
+        }
+
+        /// <summary>
+        /// Apply camera shake to player camera for impact feedback.
+        /// </summary>
+        private static void ApplyCameraShake(EntityPlayerLocal player, float intensity)
+        {
+            if (!EnableCameraShake || player == null || intensity <= 0f)
+                return;
+
+            try
+            {
+                // Access player camera and apply rotational shake
+                var camera = player.playerCamera;
+                if (camera != null)
+                {
+                    var fpWeapon = FindFPWeapon(player);
+                    if (fpWeapon != null)
+                    {
+                        // Apply shake as a quick rotational impulse
+                        Vector3 shakeRotation = new Vector3(
+                            SampleSymmetric(intensity * 50f), // Pitch
+                            SampleSymmetric(intensity * 30f), // Yaw
+                            SampleSymmetric(intensity * 20f)  // Roll
+                        );
+                        
+                        // Apply shake with very short duration for snappy feedback
+                        fpWeapon.AddSoftForce(Vector3.zero, shakeRotation, 3);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (DebugLogging)
+                    UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Camera shake error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Apply weapon momentum - weapon continues moving slightly after swing.
+        /// </summary>
+        private static void ApplyWeaponMomentum(vp_FPWeapon weapon, Vector3 swingDirection)
+        {
+            if (!EnableWeaponMomentum || weapon == null || MomentumForceMagnitude <= 0f)
+                return;
+
+            try
+            {
+                // Apply a trailing force in the swing direction that settles over time
+                Vector3 momentumForce = swingDirection.normalized * MomentumForceMagnitude;
+                Vector3 momentumRotation = new Vector3(
+                    swingDirection.x * 8f,
+                    swingDirection.y * 5f,
+                    swingDirection.z * 3f
+                );
+                
+                // Apply over more frames for smooth settling
+                weapon.AddSoftForce(momentumForce, momentumRotation, 35);
+
+                if (DebugLogging)
+                {
+                    UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Momentum applied: Force={momentumForce}, Rot={momentumRotation}");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (DebugLogging)
+                    UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Momentum error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Update combo counter and return current combo multiplier for speed.
+        /// </summary>
+        private static float GetComboSpeedMultiplier()
+        {
+            if (!EnableComboTiming)
+                return 1f;
+
+            // Check if combo window expired
+            if (Time.time - lastComboResetTime > comboResetWindow)
+            {
+                comboCounter = 0;
+            }
+
+            // Increment combo
+            comboCounter = Mathf.Min(comboCounter + 1, MaxComboCount);
+            lastComboResetTime = Time.time;
+
+            // Calculate speed boost (1.0 + boost per hit)
+            float speedMultiplier = 1f + (comboCounter - 1) * ComboSpeedBoost;
+
+            if (DebugLogging)
+            {
+                UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Combo: {comboCounter} hits, Speed: {speedMultiplier:F2}x");
+            }
+
+            return speedMultiplier;
+        }
+
+        /// <summary>
+        /// Reset combo counter (called when combo window expires or player stops attacking).
+        /// </summary>
+        private static void ResetCombo()
+        {
+            comboCounter = 0;
+            lastComboResetTime = 0f;
         }
 
         /// <summary>
@@ -123,6 +296,7 @@ namespace MacheteAnimRandomizer
 
         /// <summary>
         /// Generate and apply random forces to a vp_FPWeapon's spring system.
+        /// Enhanced with momentum for better weapon feel.
         /// </summary>
         private static void ApplyRandomForces(vp_FPWeapon weapon, string context)
         {
@@ -142,6 +316,12 @@ namespace MacheteAnimRandomizer
 
             // Apply via the spring system
             weapon.AddSoftForce(randomPosForce, randomRotForce, SoftForceFrames);
+
+            // Apply momentum effect for weight/inertia feel
+            if (EnableWeaponMomentum)
+            {
+                ApplyWeaponMomentum(weapon, randomPosForce);
+            }
 
             if (DebugLogging)
             {
@@ -256,6 +436,7 @@ namespace MacheteAnimRandomizer
 
         /// <summary>
         /// PATCH 3: Randomize animation speed via AnimatorMeleeAttackState.
+        /// Enhanced with combo timing and windup variation for better feel.
         /// </summary>
         [HarmonyPatch(typeof(AnimatorMeleeAttackState))]
         [HarmonyPatch("OnStateEnter")]
@@ -282,9 +463,30 @@ namespace MacheteAnimRandomizer
                     if (!IsMeleeWeaponToRandomize(holdingItem))
                         return;
 
-                    // Generate random speed multiplier
+                    // Base random speed multiplier
                     float speedMultiplier = 1f + SampleSymmetric(SpeedPlusMinus);
-                    speedMultiplier = Mathf.Clamp(speedMultiplier, 0.7f, 1.3f);
+                    
+                    // Add windup variation for anticipation feel
+                    if (EnableWindupVariation)
+                    {
+                        float windupMod = 1f + SampleSymmetric(WindupVariation);
+                        speedMultiplier *= windupMod;
+                        
+                        if (DebugLogging)
+                        {
+                            UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Windup variation: {windupMod:F2}x");
+                        }
+                    }
+
+                    // Apply combo timing boost for flow
+                    if (EnableComboTiming)
+                    {
+                        float comboMultiplier = GetComboSpeedMultiplier();
+                        speedMultiplier *= comboMultiplier;
+                    }
+                    
+                    // Clamp to reasonable range
+                    speedMultiplier = Mathf.Clamp(speedMultiplier, 0.7f, 1.5f);
 
                     float randomizedSpeed = ___originalMeleeAttackSpeed * speedMultiplier;
                     animator.SetFloat("MeleeAttackSpeed", randomizedSpeed);
@@ -299,6 +501,127 @@ namespace MacheteAnimRandomizer
                 {
                     if (DebugLogging)
                         UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Speed patch error: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// PATCH 4: Hook hit detection for camera shake feedback.
+        /// Triggers on successful melee hits to provide visceral impact feedback.
+        /// </summary>
+        [HarmonyPatch(typeof(ItemActionAttack))]
+        [HarmonyPatch("Hit")]
+        public class Patch_MeleeHit
+        {
+            static void Postfix(
+                ItemActionData _actionData,
+                WorldRayHitInfo hitInfo,
+                int _attackerEntityId,
+                bool __result)
+            {
+                try
+                {
+                    // Only process if hit was successful
+                    if (!__result || !EnableCameraShake)
+                        return;
+
+                    if (_actionData?.invData?.holdingEntity == null)
+                        return;
+
+                    // Only affect local player
+                    if (!(_actionData.invData.holdingEntity is EntityPlayerLocal localPlayer))
+                        return;
+
+                    ItemClass holdingItem = localPlayer.inventory?.holdingItem;
+                    if (holdingItem == null || !IsMeleeWeaponToRandomize(holdingItem))
+                        return;
+
+                    // Calculate shake intensity based on hit type
+                    float shakeIntensity = CameraShakeIntensity;
+
+                    // Check if this was a critical hit or headshot for enhanced feedback
+                    if (EnableHitFeedback && hitInfo.tag != null)
+                    {
+                        string hitTag = hitInfo.tag.ToLower();
+                        
+                        // Enhanced shake for headshots
+                        if (hitTag.Contains("head"))
+                        {
+                            shakeIntensity *= CriticalHitShakeMultiplier;
+                            
+                            if (DebugLogging)
+                                UnityEngine.Debug.Log("[MacheteAnimRandomizer] Headshot detected - enhanced shake");
+                        }
+                    }
+
+                    // Apply camera shake for hit feedback
+                    ApplyCameraShake(localPlayer, shakeIntensity);
+
+                    if (DebugLogging)
+                    {
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Hit registered - shake intensity: {shakeIntensity:F3}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (DebugLogging)
+                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Hit patch error: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// PATCH 5: Detect damage events for critical hit feedback.
+        /// Provides enhanced feedback for critical/killing hits.
+        /// </summary>
+        [HarmonyPatch(typeof(EntityAlive))]
+        [HarmonyPatch("DamageEntity")]
+        public class Patch_DamageEntity
+        {
+            static void Postfix(
+                EntityAlive __instance,
+                DamageSource _damageSource,
+                int _strength,
+                bool _criticalHit,
+                float _criticalMultiplier)
+            {
+                try
+                {
+                    if (!EnableHitFeedback || !_criticalHit)
+                        return;
+
+                    // Find the attacker
+                    EntityAlive attacker = _damageSource.getAttackerEntity();
+                    if (attacker == null || !(attacker is EntityPlayerLocal localPlayer))
+                        return;
+
+                    ItemClass holdingItem = localPlayer.inventory?.holdingItem;
+                    if (holdingItem == null || !IsMeleeWeaponToRandomize(holdingItem))
+                        return;
+
+                    // Enhanced shake for critical hits
+                    float critShake = CameraShakeIntensity * CriticalHitShakeMultiplier;
+                    
+                    // Extra shake for killing blows
+                    if (__instance.IsDead())
+                    {
+                        critShake *= 1.2f;
+                        
+                        if (DebugLogging)
+                            UnityEngine.Debug.Log("[MacheteAnimRandomizer] Killing blow - maximum feedback");
+                    }
+
+                    ApplyCameraShake(localPlayer, critShake);
+
+                    if (DebugLogging)
+                    {
+                        UnityEngine.Debug.Log($"[MacheteAnimRandomizer] Critical hit - enhanced shake: {critShake:F3}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (DebugLogging)
+                        UnityEngine.Debug.LogWarning($"[MacheteAnimRandomizer] Damage patch error: {ex.Message}");
                 }
             }
         }
